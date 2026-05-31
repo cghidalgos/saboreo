@@ -1,0 +1,59 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: saboreo
+      POSTGRES_USER: saboreo
+      POSTGRES_PASSWORD: saboreo_secret
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./database/init.sql:/docker-entrypoint-initdb.d/01_init.sql:ro
+      - ./database/migration_001.sql:/docker-entrypoint-initdb.d/02_migration_001.sql:ro
+      - ./database/migration_002.sql:/docker-entrypoint-initdb.d/03_migration_002.sql:ro
+      - ./database/seed.sql:/docker-entrypoint-initdb.d/04_seed.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U saboreo -d saboreo"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    build:
+      context: ./backend
+      target: dev
+    ports:
+      - "3001:3001"
+    volumes:
+      - ./backend:/app
+      - backend_modules:/app/node_modules
+    environment:
+      NODE_ENV: development
+      PORT: 3001
+      FRONTEND_URL: http://localhost:3000
+      DATABASE_URL: postgresql://saboreo:saboreo_secret@postgres:5432/saboreo
+      JWT_SECRET: dev-secret-change-in-production
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  frontend:
+    build:
+      context: ./frontend
+      target: dev
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./frontend:/app
+      - frontend_modules:/app/node_modules
+    environment:
+      NODE_ENV: development
+      VITE_API_URL: http://localhost:3001
+    depends_on:
+      - backend
+
+volumes:
+  postgres_data:
+  backend_modules:
+  frontend_modules:

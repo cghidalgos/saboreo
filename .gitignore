@@ -20,6 +20,14 @@ dist-ssr
 .wrangler/
 .dev.vars
 
+# Docker
+.env
+frontend/.env
+backend/.env
+
+# Documentos internos
+Información para plataforma/
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
