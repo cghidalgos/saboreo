@@ -14,7 +14,8 @@ services:
       - ./database/migration_002.sql:/docker-entrypoint-initdb.d/03_migration_002.sql:ro
       - ./database/migration_003.sql:/docker-entrypoint-initdb.d/04_migration_003.sql:ro
       - ./database/migration_004.sql:/docker-entrypoint-initdb.d/05_migration_004.sql:ro
-      - ./database/seed.sql:/docker-entrypoint-initdb.d/06_seed.sql:ro
+      - ./database/migration_005.sql:/docker-entrypoint-initdb.d/06_migration_005.sql:ro
+      - ./database/seed.sql:/docker-entrypoint-initdb.d/07_seed.sql:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U saboreo -d saboreo"]
       interval: 5s
@@ -30,6 +31,7 @@ services:
     volumes:
       - ./backend:/app
       - backend_modules:/app/node_modules
+      - ./uploads:/app/uploads
     environment:
       NODE_ENV: development
       PORT: 3001

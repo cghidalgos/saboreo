@@ -1,6 +1,8 @@
 import "dotenv/config";
 import express from "express";
 import cors from "cors";
+import path from "path";
+import { mkdirSync } from "fs";
 import { authRouter } from "./routes/auth.js";
 import { encuestasRouter } from "./routes/encuestas.js";
 import { sesionesRouter } from "./routes/sesiones.js";
@@ -13,6 +15,11 @@ const PORT = process.env.PORT ?? 3001;
 
 app.use(cors({ origin: process.env.FRONTEND_URL ?? "http://localhost:3000" }));
 app.use(express.json());
+
+// Serve uploaded videos
+const videosDir = path.join(process.cwd(), "uploads", "videos");
+mkdirSync(videosDir, { recursive: true });
+app.use("/videos", express.static(videosDir));
 
 app.use("/api/auth", authRouter);
 app.use("/api/encuestas", encuestasRouter);

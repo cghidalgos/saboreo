@@ -95,7 +95,8 @@ router.get("/", requireAuth, async (req: AuthRequest, res: Response) => {
           'emocion_dominante', em.emocion_dominante,
           'sentimiento_voz',   em.sentimiento_voz,
           'resumen_ia',        em.resumen_ia,
-          'frames_analizados', em.frames_analizados
+          'frames_analizados', em.frames_analizados,
+          'video_url',         em.video_url
         ) ORDER BY em.numero_muestra) FILTER (WHERE em.id IS NOT NULL),
         '[]'
       ) AS evaluaciones

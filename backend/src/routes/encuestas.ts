@@ -1,7 +1,9 @@
-import { Router, type Request, type Response } from "express";
+import { Router, raw, type Request, type Response } from "express";
 import { pool } from "../db.js";
 import { requireAuth, type AuthRequest } from "./auth.js";
 import { z } from "zod";
+import { writeFile, mkdir } from "fs/promises";
+import { join } from "path";
 
 const router = Router();
 
@@ -114,6 +116,28 @@ router.post("/publicas/:id/analizar-video", async (req: Request, res: Response) 
   res.json(resultado);
 });
 
+// POST /api/encuestas/publicas/:id/muestras/:muestra/video — subida de video sin auth
+router.post(
+  "/publicas/:id/muestras/:muestra/video",
+  raw({ type: ["video/webm", "video/mp4", "video/ogg", "video/*", "application/octet-stream"], limit: "200mb" }),
+  async (req: Request, res: Response) => {
+    const { id, muestra } = req.params;
+    const { rows } = await pool.query(
+      "SELECT id FROM encuestas WHERE id = $1 AND estado = 'activa' AND requiere_video = true",
+      [id]
+    );
+    if (!rows[0]) return res.status(404).json({ message: "Encuesta no encontrada o sin video habilitado." });
+    if (!Buffer.isBuffer(req.body) || req.body.length === 0) {
+      return res.status(400).json({ message: "No se recibió video." });
+    }
+    const dir = join(process.cwd(), "uploads", "videos");
+    await mkdir(dir, { recursive: true });
+    const filename = `${id}_m${muestra}_${Date.now()}.webm`;
+    await writeFile(join(dir, filename), req.body as Buffer);
+    res.json({ video_url: `/videos/${filename}` });
+  }
+);
+
 // POST /api/encuestas/publicas/:id/respuestas — respuesta pública sin auth
 router.post("/publicas/:id/respuestas", async (req: Request, res: Response) => {
   const parsed = respuestaSchema.safeParse(req.body);
@@ -146,15 +170,16 @@ router.post("/publicas/:id/respuestas", async (req: Request, res: Response) => {
         await client.query(
           `INSERT INTO evaluaciones_muestra
              (respuesta_id, numero_muestra, calificacion, observaciones,
-              score_ia, emociones, emocion_dominante, sentimiento_voz, resumen_ia, frames_analizados)
-           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
+              score_ia, emociones, emocion_dominante, sentimiento_voz, resumen_ia, frames_analizados, video_url)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`,
           [resp.id, ev.numero_muestra, ev.calificacion ?? null, ev.observaciones ?? null,
            ev.score_ia ?? null,
            ev.emociones ? JSON.stringify(ev.emociones) : null,
            ev.emocion_dominante ?? null,
            ev.sentimiento_voz ?? null,
            ev.resumen_ia ?? null,
-           ev.frames_analizados ?? null]
+           ev.frames_analizados ?? null,
+           ev.video_url ?? null]
         );
       }
     }
@@ -302,15 +327,16 @@ router.post("/:id/respuestas", requireAuth, async (req: AuthRequest, res: Respon
         await client.query(
           `INSERT INTO evaluaciones_muestra
              (respuesta_id, numero_muestra, calificacion, observaciones,
-              score_ia, emociones, emocion_dominante, sentimiento_voz, resumen_ia, frames_analizados)
-           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
+              score_ia, emociones, emocion_dominante, sentimiento_voz, resumen_ia, frames_analizados, video_url)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`,
           [respuestaId, ev.numero_muestra, ev.calificacion ?? null, ev.observaciones ?? null,
            ev.score_ia ?? null,
            ev.emociones ? JSON.stringify(ev.emociones) : null,
            ev.emocion_dominante ?? null,
            ev.sentimiento_voz ?? null,
            ev.resumen_ia ?? null,
-           ev.frames_analizados ?? null],
+           ev.frames_analizados ?? null,
+           ev.video_url ?? null],
         );
       }
     }

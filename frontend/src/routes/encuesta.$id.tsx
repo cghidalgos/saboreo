@@ -66,6 +66,7 @@ interface EvalMuestraState {
   sentimiento_voz?: string;
   resumen_ia?: string;
   frames_analizados?: number;
+  video_url?: string;
 }
 
 const ESCALA = [
@@ -173,6 +174,7 @@ function TomarEncuestaPage() {
             sentimiento_voz: m.sentimiento_voz,
             resumen_ia: m.resumen_ia,
             frames_analizados: m.frames_analizados,
+            video_url: m.video_url,
           })),
         }),
       });
@@ -383,7 +385,8 @@ function TomarEncuestaPage() {
                             ? { ...mm, videoGrabado: true, score_ia: r.score_ia,
                                 emociones: r.emociones, emocion_dominante: r.emocion_dominante,
                                 sentimiento_voz: r.sentimiento_voz, resumen_ia: r.resumen,
-                                frames_analizados: r.frames_analizados }
+                                frames_analizados: r.frames_analizados,
+                                video_url: r.video_url }
                             : mm
                         )
                       )
@@ -529,10 +532,13 @@ function VideoRecorderMuestra({
     resumen: string;
     emociones: Record<string, number>;
     frames_analizados: number;
+    video_url?: string;
   }) => void;
 }) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const framesRef = useRef<string[]>([]);
+  const chunksRef = useRef<Blob[]>([]);
+  const recRef = useRef<MediaRecorder | null>(null);
   const captureRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const countdownRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -557,6 +563,7 @@ function VideoRecorderMuestra({
       streamRef.current?.getTracks().forEach((t) => t.stop());
       if (captureRef.current) clearInterval(captureRef.current);
       if (countdownRef.current) clearInterval(countdownRef.current);
+      if (recRef.current?.state !== "inactive") recRef.current?.stop();
     };
   }, []);
 
@@ -572,43 +579,77 @@ function VideoRecorderMuestra({
     if (framesRef.current.length < 8) framesRef.current.push(b64);
   }
 
+  function finalizarBlob(): Promise<Blob> {
+    return new Promise((resolve) => {
+      const mr = recRef.current;
+      if (!mr || mr.state === "inactive") {
+        resolve(new Blob(chunksRef.current, { type: "video/webm" }));
+        return;
+      }
+      mr.onstop = () => resolve(new Blob(chunksRef.current, { type: "video/webm" }));
+      mr.stop();
+    });
+  }
+
   async function detener() {
     if (captureRef.current) { clearInterval(captureRef.current); captureRef.current = null; }
     if (countdownRef.current) { clearInterval(countdownRef.current); countdownRef.current = null; }
     capturarFrame();
+
+    // Finalizar MediaRecorder antes de parar el stream
+    const videoBlob = await finalizarBlob();
     streamRef.current?.getTracks().forEach((t) => t.stop());
+
     const frames = framesRef.current;
     if (frames.length === 0) {
       setErrMsg("No se capturaron fotogramas. Intenta nuevamente.");
       setFase("error"); return;
     }
     setFase("analizando");
-    try {
-      const r = await apiFetch<{
+
+    // Claude + upload en paralelo
+    const apiBase = import.meta.env.VITE_API_URL ?? "http://localhost:3001";
+    const [claudeResult, uploadResult] = await Promise.allSettled([
+      apiFetch<{
         score_ia: number; emocion_dominante: string; sentimiento_voz: string;
         resumen: string; promedio: Record<string, number>;
       }>(`/api/encuestas/publicas/${encuestaId}/analizar-video`, {
         method: "POST",
         body: JSON.stringify({ frames }),
-      });
-      setResultado({ score_ia: r.score_ia, emocion_dominante: r.emocion_dominante, resumen: r.resumen });
-      setFase("listo");
-      onDone({
-        score_ia: r.score_ia,
-        emocion_dominante: r.emocion_dominante,
-        sentimiento_voz: r.sentimiento_voz,
-        resumen: r.resumen,
-        emociones: r.promedio ?? {},
-        frames_analizados: frames.length,
-      });
-    } catch (e) {
-      setErrMsg(e instanceof Error ? e.message : "Error al analizar el video.");
-      setFase("error");
+      }),
+      videoBlob.size > 500
+        ? fetch(
+            `${apiBase}/api/encuestas/publicas/${encuestaId}/muestras/${muestraNum}/video`,
+            { method: "POST", headers: { "Content-Type": "video/webm" }, body: videoBlob }
+          ).then((res) => res.ok ? res.json() as Promise<{ video_url: string }> : Promise.resolve(undefined))
+        : Promise.resolve(undefined),
+    ]);
+
+    if (claudeResult.status === "rejected") {
+      setErrMsg(claudeResult.reason instanceof Error ? claudeResult.reason.message : "Error al analizar el video.");
+      setFase("error"); return;
     }
+
+    const r = claudeResult.value;
+    const uploadData = uploadResult.status === "fulfilled" ? uploadResult.value as { video_url?: string } | undefined : undefined;
+    const video_url = uploadData?.video_url;
+
+    setResultado({ score_ia: r.score_ia, emocion_dominante: r.emocion_dominante, resumen: r.resumen });
+    setFase("listo");
+    onDone({
+      score_ia: r.score_ia,
+      emocion_dominante: r.emocion_dominante,
+      sentimiento_voz: r.sentimiento_voz,
+      resumen: r.resumen,
+      emociones: r.promedio ?? {},
+      frames_analizados: frames.length,
+      video_url,
+    });
   }
 
   function iniciar() {
     framesRef.current = [];
+    chunksRef.current = [];
     setFase("grabando");
     let t = 15;
     setTiempoRestante(t);
@@ -619,6 +660,18 @@ function VideoRecorderMuestra({
       setTiempoRestante(t);
       if (t <= 0) detener();
     }, 1000);
+    // Grabar video con MediaRecorder
+    if (streamRef.current) {
+      try {
+        const mimeType = MediaRecorder.isTypeSupported("video/webm;codecs=vp9")
+          ? "video/webm;codecs=vp9"
+          : MediaRecorder.isTypeSupported("video/webm") ? "video/webm" : "";
+        const mr = new MediaRecorder(streamRef.current, mimeType ? { mimeType } : undefined);
+        mr.ondataavailable = (e) => { if (e.data.size > 0) chunksRef.current.push(e.data); };
+        mr.start(1000);
+        recRef.current = mr;
+      } catch { /* sin soporte MediaRecorder — solo frames */ }
+    }
   }
 
   if (fase === "error") return (

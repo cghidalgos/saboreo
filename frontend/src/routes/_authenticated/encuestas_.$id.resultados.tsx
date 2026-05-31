@@ -5,7 +5,7 @@ import {
   BarChart, Bar, XAxis, YAxis, ResponsiveContainer, Tooltip, CartesianGrid,
   LineChart, Line, PieChart, Pie, Cell, Legend,
 } from "recharts";
-import { apiFetch } from "@/integrations/api/client";
+import { apiFetch, API_BASE } from "@/integrations/api/client";
 import { AppLayout } from "@/components/saboreo/AppLayout";
 import { toast } from "sonner";
 
@@ -38,7 +38,7 @@ interface Resultados {
       numero_muestra: number; calificacion: number | null; observaciones: string | null;
       score_ia?: number | null; emociones?: Record<string, number> | null;
       emocion_dominante?: string | null; sentimiento_voz?: string | null;
-      resumen_ia?: string | null; frames_analizados?: number | null;
+      resumen_ia?: string | null; frames_analizados?: number | null; video_url?: string | null;
     }[];
   }[];
 }
@@ -529,15 +529,23 @@ function ResultadosPage() {
                               </tbody>
                             </table>
                           </div>
-                          {evals.some((ev) => ev.resumen_ia) && (
+                          {evals.some((ev) => ev.resumen_ia || ev.video_url) && (
                             <div className="mt-3 space-y-2">
                               <p className="flex items-center gap-1.5 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                                <Brain className="h-3.5 w-3.5" /> Resúmenes Claude Vision
+                                <Brain className="h-3.5 w-3.5" /> Resúmenes & Video Claude Vision
                               </p>
-                              {evals.filter((ev) => ev.resumen_ia).map((ev) => (
+                              {evals.filter((ev) => ev.resumen_ia || ev.video_url).map((ev) => (
                                 <div key={ev.numero_muestra} className="rounded-lg bg-card border border-border px-3 py-2">
                                   <span className="mr-2 text-xs font-bold text-muted-foreground">#{ev.numero_muestra}</span>
-                                  <span className="text-xs text-foreground italic">{ev.resumen_ia}</span>
+                                  {ev.resumen_ia && <span className="text-xs text-foreground italic">{ev.resumen_ia}</span>}
+                                  {ev.video_url && (
+                                    <video
+                                      src={`${API_BASE}${ev.video_url}`}
+                                      controls
+                                      className="mt-2 w-full max-w-xs rounded-lg"
+                                      preload="metadata"
+                                    />
+                                  )}
                                 </div>
                               ))}
                             </div>

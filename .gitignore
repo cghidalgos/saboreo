@@ -38,3 +38,6 @@ Información para plataforma/
 *.njsproj
 *.sln
 *.sw?
+
+# Video uploads
+uploads/videos/
