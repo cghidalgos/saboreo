@@ -1,14 +1,16 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import {
   Users, Activity, Smile, Video, Mic, FlaskConical,
-  TrendingUp, ArrowLeft, Download, Filter,
+  TrendingUp, ArrowLeft, Download, Filter, LogOut, ShieldCheck,
 } from "lucide-react";
 import {
   BarChart, Bar, XAxis, YAxis, ResponsiveContainer, Tooltip, CartesianGrid,
   LineChart, Line, PieChart, Pie, Cell, Legend,
 } from "recharts";
+import { useAuth, ROLE_LABEL } from "@/hooks/use-auth";
+import { toast } from "sonner";
 
-export const Route = createFileRoute("/dashboard")({
+export const Route = createFileRoute("/_authenticated/dashboard")({
   head: () => ({
     meta: [
       { title: "Dashboard — SABOREO" },
@@ -37,13 +39,8 @@ const productData = [
 ];
 
 const ageData = [
-  { age: "5", score: 72 },
-  { age: "6", score: 78 },
-  { age: "7", score: 81 },
-  { age: "8", score: 84 },
-  { age: "9", score: 79 },
-  { age: "10", score: 76 },
-  { age: "11", score: 74 },
+  { age: "5", score: 72 }, { age: "6", score: 78 }, { age: "7", score: 81 },
+  { age: "8", score: 84 }, { age: "9", score: 79 }, { age: "10", score: 76 }, { age: "11", score: 74 },
 ];
 
 const emotions = [
@@ -83,11 +80,21 @@ function scoreColor(s: number) {
 }
 
 function Dashboard() {
+  const { profile, user, roles, signOut, hasRole } = useAuth();
+  const navigate = useNavigate();
+  const displayName = profile?.full_name ?? user?.email?.split("@")[0] ?? "Investigador";
+  const initials = displayName.split(" ").map((s) => s[0]).slice(0, 2).join("").toUpperCase();
+
+  async function handleSignOut() {
+    await signOut();
+    toast.success("Sesión cerrada");
+    navigate({ to: "/" });
+  }
+
   return (
     <div className="min-h-screen bg-muted/40">
-      {/* Topbar */}
       <header className="sticky top-0 z-30 border-b border-border bg-background/80 backdrop-blur-xl">
-        <div className="mx-auto flex h-16 max-w-[1400px] items-center justify-between px-6">
+        <div className="mx-auto flex h-16 max-w-[1400px] items-center justify-between gap-4 px-6">
           <div className="flex items-center gap-4">
             <Link to="/" className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-border hover:bg-accent">
               <ArrowLeft className="h-4 w-4" />
@@ -97,18 +104,54 @@ function Dashboard() {
               <h1 className="font-display text-xl font-bold leading-tight">Investigación · Aceptación infantil 2026</h1>
             </div>
           </div>
+
           <div className="flex items-center gap-2">
-            <button className="inline-flex items-center gap-2 rounded-full border border-border bg-background px-4 py-2 text-sm font-semibold hover:bg-accent">
+            <button className="hidden items-center gap-2 rounded-full border border-border bg-background px-4 py-2 text-sm font-semibold hover:bg-accent md:inline-flex">
               <Filter className="h-4 w-4" /> Filtros
             </button>
-            <button className="inline-flex items-center gap-2 rounded-full bg-foreground px-4 py-2 text-sm font-semibold text-background hover:opacity-90">
+            <button className="hidden items-center gap-2 rounded-full bg-foreground px-4 py-2 text-sm font-semibold text-background hover:opacity-90 md:inline-flex">
               <Download className="h-4 w-4" /> Exportar
             </button>
+
+            <div className="ml-2 flex items-center gap-3 rounded-full border border-border bg-background py-1.5 pl-1.5 pr-3">
+              <div className="grid h-8 w-8 place-items-center rounded-full bg-gradient-cool text-xs font-bold text-white">
+                {initials}
+              </div>
+              <div className="hidden text-left leading-tight sm:block">
+                <p className="text-xs font-semibold">{displayName}</p>
+                <p className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                  {roles.length ? roles.map((r) => ROLE_LABEL[r]).join(" · ") : "Sin rol"}
+                </p>
+              </div>
+              <button
+                onClick={handleSignOut}
+                title="Cerrar sesión"
+                className="ml-1 inline-flex h-7 w-7 items-center justify-center rounded-full text-muted-foreground hover:bg-muted hover:text-foreground"
+              >
+                <LogOut className="h-3.5 w-3.5" />
+              </button>
+            </div>
           </div>
         </div>
       </header>
 
       <main className="mx-auto max-w-[1400px] space-y-6 px-6 py-8">
+        {/* Role banner */}
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-saboreo-turquoise/30 bg-saboreo-turquoise/10 px-5 py-3">
+          <div className="flex items-center gap-3 text-sm">
+            <ShieldCheck className="h-5 w-5 text-saboreo-turquoise" />
+            <span>
+              Hola <strong>{displayName}</strong> · Acceso como{" "}
+              <strong>{roles.length ? roles.map((r) => ROLE_LABEL[r]).join(", ") : "Sin rol asignado"}</strong>
+            </span>
+          </div>
+          {hasRole("admin") && (
+            <span className="rounded-full bg-saboreo-purple/15 px-3 py-1 text-xs font-bold uppercase tracking-wider text-saboreo-purple">
+              Permisos completos
+            </span>
+          )}
+        </div>
+
         {/* KPIs */}
         <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
           {kpis.map((k) => (
@@ -130,11 +173,9 @@ function Dashboard() {
         {/* Charts row 1 */}
         <section className="grid gap-4 lg:grid-cols-3">
           <div className="rounded-2xl border border-border bg-card p-6 shadow-card lg:col-span-2">
-            <div className="mb-4 flex items-baseline justify-between">
-              <div>
-                <h2 className="font-display text-lg font-bold">Aceptación por producto</h2>
-                <p className="text-xs text-muted-foreground">Índice SABOREO promedio (0–100)</p>
-              </div>
+            <div className="mb-4">
+              <h2 className="font-display text-lg font-bold">Aceptación por producto</h2>
+              <p className="text-xs text-muted-foreground">Índice SABOREO promedio (0–100)</p>
             </div>
             <div className="h-72">
               <ResponsiveContainer>
