@@ -1,6 +1,6 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useState, useEffect } from "react";
-import { CheckCircle2, AlertCircle, ArrowLeft, Loader2 } from "lucide-react";
+import { useState, useEffect, useRef } from "react";
+import { CheckCircle2, AlertCircle, ArrowLeft, Loader2, Video, StopCircle } from "lucide-react";
 import { apiFetch } from "@/integrations/api/client";
 
 export const Route = createFileRoute("/encuesta/$id")({
@@ -40,6 +40,7 @@ interface Encuesta {
   campos_participante: CampoParticipante[] | null;
   usar_consentimiento: boolean;
   consentimiento_id: string | null;
+  requiere_video: boolean;
   creado_por_nombre: string | null;
 }
 
@@ -53,6 +54,18 @@ interface ConsentimientoData {
   texto_alergia: string | null;
   parrafos: string[];
   texto_contacto: string | null;
+}
+
+interface EvalMuestraState {
+  calificacion: number;
+  observaciones: string;
+  videoGrabado: boolean;
+  score_ia?: number;
+  emociones?: Record<string, number>;
+  emocion_dominante?: string;
+  sentimiento_voz?: string;
+  resumen_ia?: string;
+  frames_analizados?: number;
 }
 
 const ESCALA = [
@@ -81,7 +94,7 @@ function TomarEncuestaPage() {
   const [consentimiento, setConsentimiento] = useState(false);
   const [tieneAlergia, setTieneAlergia] = useState<boolean | null>(null);
   const [campos, setCampos] = useState<Record<string, string>>({});
-  const [evalMuestras, setEvalMuestras] = useState<{ calificacion: number; observaciones: string }[]>([]);
+  const [evalMuestras, setEvalMuestras] = useState<EvalMuestraState[]>([]);
   const [extras, setExtras] = useState<Record<string, string>>({});
   const [comentarios, setComentarios] = useState("");
 
@@ -91,7 +104,7 @@ function TomarEncuestaPage() {
         setEncuesta(data);
         const c = data.campos_participante?.filter((c) => c.activo) ?? [];
         setCampos(Object.fromEntries(c.map((f) => [f.key, ""])));
-        setEvalMuestras(Array.from({ length: data.num_muestras }, () => ({ calificacion: 0, observaciones: "" })));
+        setEvalMuestras(Array.from({ length: data.num_muestras }, () => ({ calificacion: 0, observaciones: "", videoGrabado: false })));
         // Si tiene consentimiento formal, cargarlo y mostrar esa etapa primero
         if (data.usar_consentimiento && data.consentimiento_id) {
           try {
@@ -120,6 +133,12 @@ function TomarEncuestaPage() {
       }
     }
 
+    if (encuesta.requiere_video) {
+      const sinVideo = evalMuestras.filter((m) => !m.videoGrabado).length;
+      if (sinVideo > 0) {
+        alert(`Faltan ${sinVideo} muestra${sinVideo > 1 ? "s" : ""} por grabar en video.`); return;
+      }
+    }
     const sinCalificar = evalMuestras.filter((m) => !m.calificacion).length;
     if (sinCalificar > 0) {
       alert(`Faltan ${sinCalificar} muestra${sinCalificar > 1 ? "s" : ""} por calificar.`); return;
@@ -148,6 +167,12 @@ function TomarEncuestaPage() {
             numero_muestra: i + 1,
             calificacion: m.calificacion || undefined,
             observaciones: m.observaciones || undefined,
+            score_ia: m.score_ia,
+            emociones: m.emociones,
+            emocion_dominante: m.emocion_dominante,
+            sentimiento_voz: m.sentimiento_voz,
+            resumen_ia: m.resumen_ia,
+            frames_analizados: m.frames_analizados,
           })),
         }),
       });
@@ -341,28 +366,55 @@ function TomarEncuestaPage() {
                 <div className="mb-3 flex items-center gap-2">
                   <span className="flex h-7 w-7 items-center justify-center rounded-full bg-[#4F86C6] text-xs font-black text-white">{idx + 1}</span>
                   <span className="font-semibold text-gray-800">Muestra {idx + 1}</span>
+                  {encuesta.requiere_video && m.videoGrabado && (
+                    <span className="ml-auto flex items-center gap-1 text-xs font-semibold text-green-600">
+                      <CheckCircle2 className="h-3.5 w-3.5" /> Video analizado
+                    </span>
+                  )}
                 </div>
-                {atributos.map((a) => (
-                  <div key={a} className="mb-3">
-                    <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-gray-400">{a}</p>
-                    <div className="grid grid-cols-5 gap-2">
-                      {ESCALA.map((e) => (
-                        <button key={e.val} type="button"
-                          onClick={() => setEval(idx, "calificacion", e.val)}
-                          className={`flex flex-col items-center rounded-xl border-2 py-3 transition-all ${m.calificacion === e.val ? `${e.color} border-current scale-105 shadow-md font-bold` : "border-gray-100 bg-gray-50 hover:border-gray-300"}`}
-                        >
-                          <span className="text-2xl leading-none">{e.emoji}</span>
-                          <span className="mt-1 text-[11px] font-bold">{e.val}</span>
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                ))}
-                <input type="text" placeholder="Observaciones (opcional)…"
-                  value={m.observaciones}
-                  onChange={(e) => setEval(idx, "observaciones", e.target.value)}
-                  className="mt-2 w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-2 text-sm outline-none focus:border-[#4F86C6] focus:ring-2 focus:ring-[#4F86C6]/20"
-                />
+                {encuesta.requiere_video && !m.videoGrabado && (
+                  <VideoRecorderMuestra
+                    encuestaId={id}
+                    muestraNum={idx + 1}
+                    onDone={(r) =>
+                      setEvalMuestras((p) =>
+                        p.map((mm, i) =>
+                          i === idx
+                            ? { ...mm, videoGrabado: true, score_ia: r.score_ia,
+                                emociones: r.emociones, emocion_dominante: r.emocion_dominante,
+                                sentimiento_voz: r.sentimiento_voz, resumen_ia: r.resumen,
+                                frames_analizados: r.frames_analizados }
+                            : mm
+                        )
+                      )
+                    }
+                  />
+                )}
+                {(!encuesta.requiere_video || m.videoGrabado) && (
+                  <>
+                    {atributos.map((a) => (
+                      <div key={a} className="mb-3">
+                        <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-gray-400">{a}</p>
+                        <div className="grid grid-cols-5 gap-2">
+                          {ESCALA.map((e) => (
+                            <button key={e.val} type="button"
+                              onClick={() => setEval(idx, "calificacion", e.val)}
+                              className={`flex flex-col items-center rounded-xl border-2 py-3 transition-all ${m.calificacion === e.val ? `${e.color} border-current scale-105 shadow-md font-bold` : "border-gray-100 bg-gray-50 hover:border-gray-300"}`}
+                            >
+                              <span className="text-2xl leading-none">{e.emoji}</span>
+                              <span className="mt-1 text-[11px] font-bold">{e.val}</span>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                    <input type="text" placeholder="Observaciones (opcional)…"
+                      value={m.observaciones}
+                      onChange={(e) => setEval(idx, "observaciones", e.target.value)}
+                      className="mt-2 w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-2 text-sm outline-none focus:border-[#4F86C6] focus:ring-2 focus:ring-[#4F86C6]/20"
+                    />
+                  </>
+                )}
               </div>
             ))}
           </div>
@@ -461,7 +513,176 @@ function TomarEncuestaPage() {
     </div>
   );
 }
+// ── Grabador de video por muestra ───────────────────────────────────────────
 
+function VideoRecorderMuestra({
+  encuestaId,
+  muestraNum,
+  onDone,
+}: {
+  encuestaId: string;
+  muestraNum: number;
+  onDone: (r: {
+    score_ia: number;
+    emocion_dominante: string;
+    sentimiento_voz: string;
+    resumen: string;
+    emociones: Record<string, number>;
+    frames_analizados: number;
+  }) => void;
+}) {
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const framesRef = useRef<string[]>([]);
+  const captureRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const countdownRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const streamRef = useRef<MediaStream | null>(null);
+
+  const [fase, setFase] = useState<"preview" | "grabando" | "analizando" | "listo" | "error">("preview");
+  const [errMsg, setErrMsg] = useState<string | null>(null);
+  const [tiempoRestante, setTiempoRestante] = useState(15);
+  const [resultado, setResultado] = useState<{ score_ia: number; emocion_dominante: string; resumen: string } | null>(null);
+
+  useEffect(() => {
+    navigator.mediaDevices
+      .getUserMedia({ video: { facingMode: "user", width: 320, height: 240 }, audio: false })
+      .then((stream) => {
+        streamRef.current = stream;
+        if (videoRef.current) videoRef.current.srcObject = stream;
+      })
+      .catch(() => {
+        setErrMsg("No se pudo acceder a la cámara. Verifica los permisos del navegador.");
+        setFase("error");
+      });
+    return () => {
+      streamRef.current?.getTracks().forEach((t) => t.stop());
+      if (captureRef.current) clearInterval(captureRef.current);
+      if (countdownRef.current) clearInterval(countdownRef.current);
+    };
+  }, []);
+
+  function capturarFrame() {
+    const video = videoRef.current;
+    if (!video || video.readyState < 2) return;
+    const canvas = document.createElement("canvas");
+    canvas.width = 320; canvas.height = 240;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+    const b64 = canvas.toDataURL("image/jpeg", 0.6).split(",")[1];
+    if (framesRef.current.length < 8) framesRef.current.push(b64);
+  }
+
+  async function detener() {
+    if (captureRef.current) { clearInterval(captureRef.current); captureRef.current = null; }
+    if (countdownRef.current) { clearInterval(countdownRef.current); countdownRef.current = null; }
+    capturarFrame();
+    streamRef.current?.getTracks().forEach((t) => t.stop());
+    const frames = framesRef.current;
+    if (frames.length === 0) {
+      setErrMsg("No se capturaron fotogramas. Intenta nuevamente.");
+      setFase("error"); return;
+    }
+    setFase("analizando");
+    try {
+      const r = await apiFetch<{
+        score_ia: number; emocion_dominante: string; sentimiento_voz: string;
+        resumen: string; promedio: Record<string, number>;
+      }>(`/api/encuestas/publicas/${encuestaId}/analizar-video`, {
+        method: "POST",
+        body: JSON.stringify({ frames }),
+      });
+      setResultado({ score_ia: r.score_ia, emocion_dominante: r.emocion_dominante, resumen: r.resumen });
+      setFase("listo");
+      onDone({
+        score_ia: r.score_ia,
+        emocion_dominante: r.emocion_dominante,
+        sentimiento_voz: r.sentimiento_voz,
+        resumen: r.resumen,
+        emociones: r.promedio ?? {},
+        frames_analizados: frames.length,
+      });
+    } catch (e) {
+      setErrMsg(e instanceof Error ? e.message : "Error al analizar el video.");
+      setFase("error");
+    }
+  }
+
+  function iniciar() {
+    framesRef.current = [];
+    setFase("grabando");
+    let t = 15;
+    setTiempoRestante(t);
+    capturarFrame();
+    captureRef.current = setInterval(capturarFrame, 2000);
+    countdownRef.current = setInterval(() => {
+      t--;
+      setTiempoRestante(t);
+      if (t <= 0) detener();
+    }, 1000);
+  }
+
+  if (fase === "error") return (
+    <div className="rounded-xl bg-red-50 border border-red-200 p-4 text-sm text-red-700">
+      <p className="font-semibold mb-1">Error de cámara</p>
+      <p>{errMsg}</p>
+    </div>
+  );
+
+  if (fase === "listo" && resultado) return (
+    <div className="rounded-xl bg-green-50 border border-green-200 p-4 space-y-2">
+      <div className="flex items-center gap-2 text-green-700 font-semibold text-sm">
+        <CheckCircle2 className="h-4 w-4" /> Video analizado — Muestra {muestraNum}
+      </div>
+      <div className="flex flex-wrap gap-2 text-xs">
+        <span className="rounded-full bg-green-100 px-3 py-1 font-semibold text-green-800">Score IA: {resultado.score_ia}/100</span>
+        <span className="rounded-full bg-blue-100 px-3 py-1 font-semibold text-blue-800">{resultado.emocion_dominante}</span>
+      </div>
+      {resultado.resumen && <p className="text-xs text-gray-600 italic leading-relaxed">{resultado.resumen}</p>}
+    </div>
+  );
+
+  if (fase === "analizando") return (
+    <div className="flex items-center gap-3 rounded-xl bg-blue-50 border border-blue-200 p-4">
+      <Loader2 className="h-5 w-5 animate-spin text-[#4F86C6]" />
+      <div>
+        <p className="text-sm font-semibold text-blue-800">Analizando expresiones…</p>
+        <p className="text-xs text-blue-600">Claude Vision está procesando los fotogramas</p>
+      </div>
+    </div>
+  );
+
+  return (
+    <div className="space-y-3">
+      <div className="relative overflow-hidden rounded-xl bg-black aspect-video w-full max-w-xs mx-auto">
+        <video ref={videoRef} autoPlay muted playsInline className="w-full h-full object-cover" />
+        {fase === "grabando" && (
+          <div className="absolute top-2 right-2 flex items-center gap-1.5 rounded-full bg-red-600 px-2 py-0.5 text-[10px] font-bold text-white shadow">
+            <span className="h-1.5 w-1.5 rounded-full bg-white animate-pulse" />
+            REC · {tiempoRestante}s
+          </div>
+        )}
+      </div>
+      <div className="flex justify-center">
+        {fase === "preview" ? (
+          <button type="button" onClick={iniciar}
+            className="flex items-center gap-2 rounded-full bg-[#4F86C6] px-5 py-2.5 text-sm font-bold text-white hover:opacity-90">
+            <Video className="h-4 w-4" /> Iniciar grabación (15 s)
+          </button>
+        ) : (
+          <button type="button" onClick={detener}
+            className="flex items-center gap-2 rounded-full bg-red-600 px-5 py-2.5 text-sm font-bold text-white hover:opacity-90">
+            <StopCircle className="h-4 w-4" /> Detener grabación
+          </button>
+        )}
+      </div>
+      <p className="text-center text-xs text-gray-400">
+        {fase === "preview"
+          ? "Graba tu reacción mientras pruebas la muestra. La grabación dura 15 segundos y se detiene sola."
+          : `Grabando… ${tiempoRestante}s restantes. Puedes detener antes si lo deseas.`}
+      </p>
+    </div>
+  );
+}
 // ── Página de consentimiento formal ──────────────────────────────────────────
 
 function PaginaConsentimiento({

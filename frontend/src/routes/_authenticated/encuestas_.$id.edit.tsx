@@ -2,7 +2,7 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useState, useEffect } from "react";
 import {
   ArrowLeft, Save, Pencil, Check, X, Plus, Trash2,
-  ChevronUp, ChevronDown, AlertCircle, Info, FileText, ExternalLink,
+  ChevronUp, ChevronDown, AlertCircle, Info, FileText, ExternalLink, Video,
 } from "lucide-react";
 import { toast } from "sonner";
 import { apiFetch } from "@/integrations/api/client";
@@ -60,6 +60,7 @@ interface Encuesta {
   campos_participante: CampoParticipante[] | null;
   usar_consentimiento: boolean;
   consentimiento_id: string | null;
+  requiere_video: boolean;
   total_respuestas: number;
   created_at: string;
 }
@@ -99,6 +100,7 @@ function EditarEncuestaPage() {
   const [camposParticipante, setCamposParticipante] = useState<CampoParticipante[]>(DEFAULT_CAMPOS);
   const [usarConsentimiento, setUsarConsentimiento] = useState(false);
   const [consentimientoId, setConsentimientoId] = useState<string | null>(null);
+  const [requiereVideo, setRequiereVideo] = useState(false);
   const [listaConsentimientos, setListaConsentimientos] = useState<ConsentimientoResumen[]>([]);
 
   // Sección actualmente en edición
@@ -127,6 +129,7 @@ function EditarEncuestaPage() {
         setCamposParticipante(Array.isArray(cp) ? cp : DEFAULT_CAMPOS);
         setUsarConsentimiento(enc.usar_consentimiento ?? false);
         setConsentimientoId(enc.consentimiento_id ?? null);
+        setRequiereVideo(enc.requiere_video ?? false);
         setListaConsentimientos(consentimientos);
       })
       .catch(() => toast.error("No se pudo cargar la encuesta"))
@@ -149,6 +152,7 @@ function EditarEncuestaPage() {
           campos_participante: camposParticipante,
           usar_consentimiento: usarConsentimiento,
           consentimiento_id: usarConsentimiento ? consentimientoId : null,
+          requiere_video: requiereVideo,
         }),
       });
       toast.success("Encuesta guardada");
@@ -451,6 +455,30 @@ function EditarEncuestaPage() {
               <EField label="Número de muestras">
                 <input type="number" min={1} max={30} value={numMuestras} onChange={(e) => setNumMuestras(parseInt(e.target.value) || 1)} className="input-base w-32" />
               </EField>
+
+              {/* Toggle video */}
+              <div className="flex items-start gap-4 rounded-xl border border-border bg-muted/30 px-4 py-3">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-saboreo-blue/10">
+                  <Video className="h-5 w-5 text-saboreo-blue" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold">Grabación de video por muestra</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">El participante debe grabar video antes de calificar cada muestra. Claude Vision analiza sus expresiones faciales.</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setRequiereVideo((v) => !v)}
+                  className={`relative mt-0.5 h-6 w-11 shrink-0 rounded-full transition-colors ${
+                    requiereVideo ? 'bg-saboreo-blue' : 'bg-muted-foreground/30'
+                  }`}
+                  role="switch"
+                  aria-checked={requiereVideo}
+                >
+                  <span className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform ${
+                    requiereVideo ? 'translate-x-5' : 'translate-x-0.5'
+                  }`} />
+                </button>
+              </div>
 
               <div className="space-y-2">
                 <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Atributos a evaluar</p>

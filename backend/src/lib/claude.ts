@@ -1,12 +1,12 @@
 /**
  * Claude Vision client para análisis de expresiones faciales en paneles sensoriales.
  *
- * Modelo recomendado: claude-haiku-3-5 (rápido y económico, ~2 s por muestra)
- * Alternativa de mayor precisión: claude-sonnet-4-5
+ * Modelo recomendado: claude-haiku-4-5-20251001 (rápido y económico, ~2 s por muestra)
+ * Alternativa de mayor precisión: claude-sonnet-4-5-20250929
  */
 
 const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY ?? "";
-const CLAUDE_MODEL = process.env.CLAUDE_MODEL ?? "claude-haiku-3-5";
+const CLAUDE_MODEL = process.env.CLAUDE_MODEL ?? "claude-haiku-4-5-20251001";
 const ANTHROPIC_API_URL = "https://api.anthropic.com/v1/messages";
 
 export interface EmocionesMuestra {

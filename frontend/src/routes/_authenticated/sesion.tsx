@@ -210,12 +210,19 @@ function SesionPage() {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: micOn });
       streamRef.current = stream;
-      if (videoRef.current) { videoRef.current.srcObject = stream; videoRef.current.play(); }
       setCamState("preview");
     } catch {
       toast.error("No se pudo acceder a la cámara. Verifica los permisos.");
     }
   }, [micOn]);
+
+  // Asignar stream al video cuando camState pasa a preview/recording
+  useEffect(() => {
+    if ((camState === "preview" || camState === "recording") && videoRef.current && streamRef.current) {
+      videoRef.current.srcObject = streamRef.current;
+      videoRef.current.play().catch(() => {/* autoplay policy */});
+    }
+  }, [camState]);
 
   function iniciarGrabacion() {
     framesRef.current = [];
@@ -341,8 +348,6 @@ function SesionPage() {
     setResultadoActual(null);
     // La cámara sigue activa → volvemos a preview
     setCamState("preview");
-  }
-    setCamState("results");
   }
 
   async function eliminarSesion(id: string) {
@@ -539,9 +544,12 @@ function SesionPage() {
 
               {/* Video area */}
               <div className="relative bg-black" style={{ aspectRatio: "16/9" }}>
-                {(camState === "preview" || camState === "recording") && (
-                  <video ref={videoRef} className="h-full w-full object-cover" muted autoPlay playsInline />
-                )}
+                {/* Siempre montado para que videoRef esté disponible al asignar el stream */}
+                <video
+                  ref={videoRef}
+                  className={`h-full w-full object-cover ${camState !== "preview" && camState !== "recording" ? "hidden" : ""}`}
+                  muted autoPlay playsInline
+                />
 
                 {camState === "idle" && (
                   <div className="flex h-full flex-col items-center justify-center gap-4 text-white">
@@ -612,8 +620,6 @@ function SesionPage() {
                       <StopCircle className="h-4 w-4" /> Detener y analizar
                     </button>
                   )}
-                </div>
-              )}
                 </div>
               )}
 

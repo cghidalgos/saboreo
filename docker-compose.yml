@@ -13,7 +13,8 @@ services:
       - ./database/migration_001.sql:/docker-entrypoint-initdb.d/02_migration_001.sql:ro
       - ./database/migration_002.sql:/docker-entrypoint-initdb.d/03_migration_002.sql:ro
       - ./database/migration_003.sql:/docker-entrypoint-initdb.d/04_migration_003.sql:ro
-      - ./database/seed.sql:/docker-entrypoint-initdb.d/05_seed.sql:ro
+      - ./database/migration_004.sql:/docker-entrypoint-initdb.d/05_migration_004.sql:ro
+      - ./database/seed.sql:/docker-entrypoint-initdb.d/06_seed.sql:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U saboreo -d saboreo"]
       interval: 5s
@@ -36,7 +37,7 @@ services:
       DATABASE_URL: postgresql://saboreo:saboreo_secret@postgres:5432/saboreo
       JWT_SECRET: dev-secret-change-in-production
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
-      CLAUDE_MODEL: ${CLAUDE_MODEL:-claude-haiku-3-5}
+      CLAUDE_MODEL: ${CLAUDE_MODEL:-claude-haiku-4-5-20251001}
     depends_on:
       postgres:
         condition: service_healthy

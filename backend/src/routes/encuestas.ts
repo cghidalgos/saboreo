@@ -38,12 +38,19 @@ const encuestaSchema = z.object({
   })).optional(),
   usar_consentimiento: z.boolean().optional(),
   consentimiento_id:   z.string().uuid().optional().nullable(),
+  requiere_video:      z.boolean().optional(),
 });
 
 const evaluacionSchema = z.object({
-  numero_muestra: z.number().int().min(1),
-  calificacion: z.number().int().min(1).max(5).optional(),
-  observaciones: z.string().trim().max(500).optional(),
+  numero_muestra:    z.number().int().min(1),
+  calificacion:      z.number().int().min(1).max(5).optional(),
+  observaciones:     z.string().trim().max(500).optional(),
+  score_ia:          z.number().int().min(0).max(100).optional(),
+  emociones:         z.record(z.number()).optional(),
+  emocion_dominante: z.string().optional(),
+  sentimiento_voz:   z.enum(["positivo", "neutro", "negativo"]).optional(),
+  resumen_ia:        z.string().max(1000).optional(),
+  frames_analizados: z.number().int().min(0).optional(),
 });
 
 const respuestaSchema = z.object({
@@ -88,6 +95,25 @@ router.get("/publicas/:id", async (req: Request, res: Response) => {
   res.json(rows[0]);
 });
 
+// POST /api/encuestas/publicas/:id/analizar-video — análisis Claude sin auth
+router.post("/publicas/:id/analizar-video", async (req: Request, res: Response) => {
+  const { frames, transcripcion } = req.body as { frames?: string[]; transcripcion?: string };
+  if (!Array.isArray(frames) || frames.length === 0) {
+    return res.status(400).json({ message: "Se requiere al menos 1 fotograma." });
+  }
+  // Verificar que la encuesta existe, es activa y requiere video
+  const { rows } = await pool.query(
+    "SELECT id, requiere_video FROM encuestas WHERE id = $1 AND estado = 'activa'",
+    [req.params.id]
+  );
+  if (!rows[0]) return res.status(404).json({ message: "Encuesta no encontrada." });
+  if (!rows[0].requiere_video) return res.status(400).json({ message: "Esta encuesta no tiene video habilitado." });
+
+  const { analizarMuestraConClaude } = await import("../lib/claude.js");
+  const resultado = await analizarMuestraConClaude(frames, transcripcion);
+  res.json(resultado);
+});
+
 // POST /api/encuestas/publicas/:id/respuestas — respuesta pública sin auth
 router.post("/publicas/:id/respuestas", async (req: Request, res: Response) => {
   const parsed = respuestaSchema.safeParse(req.body);
@@ -118,9 +144,17 @@ router.post("/publicas/:id/respuestas", async (req: Request, res: Response) => {
     if (d.evaluaciones?.length) {
       for (const ev of d.evaluaciones) {
         await client.query(
-          `INSERT INTO evaluaciones_muestra (respuesta_id, numero_muestra, calificacion, observaciones)
-           VALUES ($1,$2,$3,$4)`,
-          [resp.id, ev.numero_muestra, ev.calificacion ?? null, ev.observaciones ?? null]
+          `INSERT INTO evaluaciones_muestra
+             (respuesta_id, numero_muestra, calificacion, observaciones,
+              score_ia, emociones, emocion_dominante, sentimiento_voz, resumen_ia, frames_analizados)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
+          [resp.id, ev.numero_muestra, ev.calificacion ?? null, ev.observaciones ?? null,
+           ev.score_ia ?? null,
+           ev.emociones ? JSON.stringify(ev.emociones) : null,
+           ev.emocion_dominante ?? null,
+           ev.sentimiento_voz ?? null,
+           ev.resumen_ia ?? null,
+           ev.frames_analizados ?? null]
         );
       }
     }
@@ -266,9 +300,17 @@ router.post("/:id/respuestas", requireAuth, async (req: AuthRequest, res: Respon
     if (d.evaluaciones && d.evaluaciones.length > 0) {
       for (const ev of d.evaluaciones) {
         await client.query(
-          `INSERT INTO evaluaciones_muestra (respuesta_id, numero_muestra, calificacion, observaciones)
-           VALUES ($1, $2, $3, $4)`,
-          [respuestaId, ev.numero_muestra, ev.calificacion ?? null, ev.observaciones ?? null],
+          `INSERT INTO evaluaciones_muestra
+             (respuesta_id, numero_muestra, calificacion, observaciones,
+              score_ia, emociones, emocion_dominante, sentimiento_voz, resumen_ia, frames_analizados)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
+          [respuestaId, ev.numero_muestra, ev.calificacion ?? null, ev.observaciones ?? null,
+           ev.score_ia ?? null,
+           ev.emociones ? JSON.stringify(ev.emociones) : null,
+           ev.emocion_dominante ?? null,
+           ev.sentimiento_voz ?? null,
+           ev.resumen_ia ?? null,
+           ev.frames_analizados ?? null],
         );
       }
     }
