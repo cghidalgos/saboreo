@@ -3,7 +3,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import {
   Video, Plus, X, Camera, StopCircle, Play,
   CheckCircle2, Trash2, Clock, AlertCircle, Mic, MicOff,
-  BrainCircuit, Smile, BarChart3,
+  BrainCircuit, Smile, BarChart3, ChevronRight, Flag,
 } from "lucide-react";
 import { toast } from "sonner";
 import { apiFetch } from "@/integrations/api/client";
@@ -32,7 +32,21 @@ interface Sesion {
   created_at: string;
 }
 
-interface Encuesta { id: string; titulo: string; }
+interface Encuesta { id: string; titulo: string; num_muestras: number; }
+
+interface AnalisisMuestra {
+  id: string;
+  sesion_id: string;
+  numero_muestra: number;
+  frames_analizados: number;
+  emociones: Record<string, number>;
+  emocion_dominante: string;
+  transcripcion: string | null;
+  sentimiento_voz: "positivo" | "neutro" | "negativo" | null;
+  score_ia: number;
+  resumen_ia: string | null;
+  duracion_seg: number | null;
+}
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -44,9 +58,15 @@ const ESTADO_UI: Record<EstadoSesion, { label: string; color: string; icon: type
 };
 
 const EMOCIONES_COLORES: Record<string, string> = {
-  alegría: "var(--saboreo-yellow)", sorpresa: "var(--saboreo-sky)",
-  interés: "var(--saboreo-green)",  neutral: "var(--saboreo-purple)",
-  asco: "var(--saboreo-red)",       tristeza: "var(--saboreo-orange)",
+  alegria:  "var(--saboreo-yellow)", sorpresa: "var(--saboreo-sky)",
+  interes:  "var(--saboreo-green)",  neutral:  "var(--saboreo-purple)",
+  disgusto: "var(--saboreo-red)",    tristeza: "var(--saboreo-orange)",
+};
+
+const SENTIMIENTO_UI = {
+  positivo: { label: "Positivo",  color: "text-saboreo-green" },
+  neutro:   { label: "Neutro",    color: "text-saboreo-yellow" },
+  negativo: { label: "Negativo",  color: "text-saboreo-red" },
 };
 
 function fmtDur(seg: number) {
@@ -61,21 +81,31 @@ function scoreColor(s: number) {
   return "text-saboreo-red";
 }
 
-/** Genera un análisis IA simulado realista */
-function simularIA(duracion: number) {
-  const score = Math.floor(Math.random() * 40 + 55);
-  const total = 100;
-  const alegria = Math.floor(Math.random() * 35 + 25);
-  const sorpresa = Math.floor(Math.random() * 20 + 10);
-  const interes = Math.floor(Math.random() * 20 + 10);
-  const asco = Math.floor(Math.random() * 10 + 2);
-  const tristeza = Math.floor(Math.random() * 5 + 1);
-  const neutral = total - alegria - sorpresa - interes - asco - tristeza;
-  return {
-    score,
-    duracion_seg: duracion,
-    emociones: { alegría: alegria, sorpresa, interés: interes, neutral: Math.max(neutral, 0), asco, tristeza },
-  };
+/** Captura un frame JPEG base64 del video (320×240 para minimizar costo de API) */
+function captureFrame(video: HTMLVideoElement): string | null {
+  try {
+    const canvas = document.createElement("canvas");
+    canvas.width = 320; canvas.height = 240;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return null;
+    ctx.drawImage(video, 0, 0, 320, 240);
+    const dataUrl = canvas.toDataURL("image/jpeg", 0.65);
+    return dataUrl.replace(/^data:image\/jpeg;base64,/, "");
+  } catch {
+    return null;
+  }
+}
+
+/** Agrega emociones de varias muestras en un promedio ponderado */
+function agregarEmociones(muestras: AnalisisMuestra[]): Record<string, number> {
+  if (!muestras.length) return {};
+  const keys = ["alegria", "disgusto", "sorpresa", "neutral", "tristeza", "interes"];
+  const result: Record<string, number> = {};
+  for (const k of keys) {
+    const avg = muestras.reduce((acc, m) => acc + ((m.emociones[k] ?? 0) * 100), 0) / muestras.length;
+    result[k] = Math.round(avg);
+  }
+  return result;
 }
 
 // ── Componente ────────────────────────────────────────────────────────────────
@@ -96,16 +126,28 @@ function SesionPage() {
   const [saving, setSaving] = useState(false);
 
   // cámara
-  type CameraState = "idle" | "preview" | "recording" | "analyzing" | "results";
+  type CameraState = "idle" | "preview" | "recording" | "analyzing" | "results" | "done";
   const [camState, setCamState] = useState<CameraState>("idle");
   const [timer, setTimer] = useState(0);
   const [micOn, setMicOn] = useState(true);
   const [currentSesionId, setCurrentSesionId] = useState<string | null>(null);
-  const [iaResult, setIaResult] = useState<ReturnType<typeof simularIA> | null>(null);
+
+  // pipeline IA por muestra
+  const [muestraActual, setMuestraActual] = useState(1);
+  const [numMuestras, setNumMuestras] = useState(1);
+  const [frameCount, setFrameCount] = useState(0);
+  const [transcripcion, setTranscripcion] = useState("");
+  const [resultadosMuestras, setResultadosMuestras] = useState<AnalisisMuestra[]>([]);
+  const [resultadoActual, setResultadoActual] = useState<AnalisisMuestra | null>(null);
 
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const frameIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const framesRef = useRef<string[]>([]);
+  const transcripcionRef = useRef("");
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const recognitionRef = useRef<any>(null);
 
   useEffect(() => {
     loadData();
@@ -129,6 +171,8 @@ function SesionPage() {
     streamRef.current?.getTracks().forEach((t) => t.stop());
     streamRef.current = null;
     if (timerRef.current) clearInterval(timerRef.current);
+    if (frameIntervalRef.current) clearInterval(frameIntervalRef.current);
+    try { recognitionRef.current?.stop(); } catch {}
   }
 
   // Paso 1: crear sesión y pasar a vista cámara
@@ -149,9 +193,14 @@ function SesionPage() {
       });
       setSesiones((p) => [nueva, ...p]);
       setCurrentSesionId(nueva.id);
+      // Determinar número de muestras desde la encuesta seleccionada
+      const enc = encuestas.find((e) => e.id === form.encuesta_id);
+      setNumMuestras(enc?.num_muestras ?? 1);
+      setMuestraActual(1);
+      setResultadosMuestras([]);
+      setResultadoActual(null);
       setCamState("idle");
       setTimer(0);
-      setIaResult(null);
       setVista("nueva");
     } catch (e) { toast.error(e instanceof Error ? e.message : "Error"); }
     finally { setSaving(false); }
@@ -169,10 +218,46 @@ function SesionPage() {
   }, [micOn]);
 
   function iniciarGrabacion() {
+    framesRef.current = [];
+    transcripcionRef.current = "";
+    setFrameCount(0);
+    setTranscripcion("");
     setCamState("recording");
     setTimer(0);
+
+    // Temporizador
     timerRef.current = setInterval(() => setTimer((t) => t + 1), 1000);
-    // Actualizar estado en BD
+
+    // Captura de frames cada 2 segundos
+    frameIntervalRef.current = setInterval(() => {
+      if (!videoRef.current) return;
+      const frame = captureFrame(videoRef.current);
+      if (frame) {
+        framesRef.current.push(frame);
+        setFrameCount(framesRef.current.length);
+      }
+    }, 2000);
+
+    // Web Speech API (transcripción en tiempo real, best-effort)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const SpeechRec = (window as any).SpeechRecognition ?? (window as any).webkitSpeechRecognition;
+    if (SpeechRec) {
+      try {
+        const rec = new SpeechRec();
+        rec.lang = "es-ES";
+        rec.continuous = true;
+        rec.interimResults = false;
+        rec.onresult = (e: Event & { results: SpeechRecognitionResultList }) => {
+          const text = Array.from(e.results).map((r) => r[0].transcript).join(" ");
+          transcripcionRef.current = text;
+          setTranscripcion(text);
+        };
+        rec.start();
+        recognitionRef.current = rec;
+      } catch { /* Speech API no disponible en este dispositivo */ }
+    }
+
+    // Actualizar estado BD
     if (currentSesionId) {
       apiFetch(`/api/sesiones/${currentSesionId}`, {
         method: "PATCH",
@@ -181,23 +266,82 @@ function SesionPage() {
     }
   }
 
-  async function detenerGrabacion() {
+  async function detenerYAnalizar() {
     if (timerRef.current) clearInterval(timerRef.current);
-    setCamState("analyzing");
-    stopStream();
+    if (frameIntervalRef.current) clearInterval(frameIntervalRef.current);
+    try { recognitionRef.current?.stop(); } catch {}
 
-    await new Promise((r) => setTimeout(r, 2500)); // simula análisis IA
+    const duracion = timer;
+    const frames = [...framesRef.current];
 
-    const resultado = simularIA(timer);
-    setIaResult(resultado);
-
-    if (currentSesionId) {
-      const sesActualizada = await apiFetch<Sesion>(`/api/sesiones/${currentSesionId}`, {
-        method: "PATCH",
-        body: JSON.stringify({ estado: "completada", ...resultado }),
-      });
-      setSesiones((p) => p.map((s) => s.id === currentSesionId ? sesActualizada : s));
+    if (frames.length === 0) {
+      toast.error("No se capturaron fotogramas. La grabación fue demasiado corta.");
+      setCamState("preview");
+      return;
     }
+
+    setCamState("analyzing");
+
+    try {
+      const resultado = await apiFetch<AnalisisMuestra>(
+        `/api/sesiones/${currentSesionId}/analizar-muestra`,
+        {
+          method: "POST",
+          body: JSON.stringify({
+            numero_muestra: muestraActual,
+            frames,
+            transcripcion: transcripcionRef.current || undefined,
+            duracion_seg: duracion,
+          }),
+        },
+      );
+
+      setResultadoActual(resultado);
+      setResultadosMuestras((prev) => {
+        const filtered = prev.filter((r) => r.numero_muestra !== resultado.numero_muestra);
+        return [...filtered, resultado].sort((a, b) => a.numero_muestra - b.numero_muestra);
+      });
+
+      // Si es la última muestra → cerrar sesión con datos agregados
+      if (muestraActual >= numMuestras) {
+        const todasMuestras = [...resultadosMuestras.filter((r) => r.numero_muestra !== resultado.numero_muestra), resultado];
+        const scores = todasMuestras.map((r) => r.score_ia).filter(Boolean) as number[];
+        const avgScore = scores.length ? Math.round(scores.reduce((a, b) => a + b, 0) / scores.length) : null;
+        const emocionesAgregadas = agregarEmociones(todasMuestras);
+
+        if (currentSesionId) {
+          const sesActualizada = await apiFetch<Sesion>(`/api/sesiones/${currentSesionId}`, {
+            method: "PATCH",
+            body: JSON.stringify({
+              estado: "completada",
+              duracion_seg: todasMuestras.reduce((a, r) => a + (r.duracion_seg ?? 0), 0),
+              score_ia: avgScore,
+              emociones: emocionesAgregadas,
+            }),
+          });
+          setSesiones((p) => p.map((s) => s.id === currentSesionId ? sesActualizada : s));
+        }
+        setCamState("done");
+      } else {
+        setCamState("results");
+      }
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Error en análisis IA");
+      setCamState("preview");
+    }
+  }
+
+  function siguienteMuestra() {
+    setMuestraActual((m) => m + 1);
+    framesRef.current = [];
+    transcripcionRef.current = "";
+    setFrameCount(0);
+    setTranscripcion("");
+    setTimer(0);
+    setResultadoActual(null);
+    // La cámara sigue activa → volvemos a preview
+    setCamState("preview");
+  }
     setCamState("results");
   }
 
@@ -215,7 +359,10 @@ function SesionPage() {
     setCamState("idle");
     setTimer(0);
     setCurrentSesionId(null);
-    setIaResult(null);
+    setResultadoActual(null);
+    setResultadosMuestras([]);
+    setMuestraActual(1);
+    setNumMuestras(1);
     setForm({ titulo: "", participante_nombre: "", participante_edad: "", encuesta_id: "", notas: "" });
     setVista("nueva");
   }
@@ -375,12 +522,19 @@ function SesionPage() {
                   <h2 className="font-display text-lg font-bold">Grabación en vivo</h2>
                   <p className="text-xs text-muted-foreground">{form.participante_nombre} · {form.participante_edad} años</p>
                 </div>
-                {camState !== "recording" && (
-                  <button onClick={() => { stopStream(); setVista("list"); }}
-                    className="grid h-8 w-8 place-items-center rounded-full hover:bg-muted">
-                    <X className="h-4 w-4" />
-                  </button>
-                )}
+                <div className="flex items-center gap-3">
+                  {/* Indicador de muestra */}
+                  <div className="flex items-center gap-1.5 rounded-full bg-saboreo-blue/10 px-3 py-1.5 text-xs font-bold text-saboreo-blue">
+                    <Flag className="h-3 w-3" />
+                    Muestra {muestraActual} / {numMuestras}
+                  </div>
+                  {camState !== "recording" && camState !== "analyzing" && (
+                    <button onClick={() => { stopStream(); setVista("list"); }}
+                      className="grid h-8 w-8 place-items-center rounded-full hover:bg-muted">
+                      <X className="h-4 w-4" />
+                    </button>
+                  )}
+                </div>
               </div>
 
               {/* Video area */}
@@ -403,16 +557,26 @@ function SesionPage() {
                 {camState === "analyzing" && (
                   <div className="flex h-full flex-col items-center justify-center gap-4 text-white">
                     <BrainCircuit className="h-16 w-16 animate-pulse opacity-70" />
-                    <p className="font-semibold">Analizando con IA…</p>
-                    <p className="text-sm opacity-60">Procesando expresiones faciales y voz</p>
+                    <p className="font-semibold">Analizando con Claude Vision…</p>
+                    <p className="text-sm opacity-60">{frameCount} fotogramas · muestra {muestraActual}</p>
                   </div>
                 )}
 
-                {/* Timer badge */}
+                {/* Timer + frames badge */}
                 {camState === "recording" && (
-                  <div className="absolute top-3 left-3 flex items-center gap-2 rounded-full bg-red-600 px-3 py-1.5 text-sm font-bold text-white shadow-lg">
-                    <span className="h-2 w-2 animate-pulse rounded-full bg-white" />
-                    {fmtDur(timer)}
+                  <div className="absolute top-3 left-3 flex flex-col gap-1.5">
+                    <div className="flex items-center gap-2 rounded-full bg-red-600 px-3 py-1.5 text-sm font-bold text-white shadow-lg">
+                      <span className="h-2 w-2 animate-pulse rounded-full bg-white" />
+                      {fmtDur(timer)}
+                    </div>
+                    <div className="rounded-full bg-black/60 px-3 py-1 text-xs font-semibold text-white backdrop-blur">
+                      {frameCount} frames
+                    </div>
+                    {transcripcion && (
+                      <div className="max-w-[220px] rounded-xl bg-black/60 px-3 py-1.5 text-xs text-white/90 backdrop-blur line-clamp-2">
+                        🎙 {transcripcion}
+                      </div>
+                    )}
                   </div>
                 )}
 
@@ -428,7 +592,7 @@ function SesionPage() {
               </div>
 
               {/* Controles */}
-              {camState !== "analyzing" && camState !== "results" && (
+              {camState !== "analyzing" && camState !== "results" && camState !== "done" && (
                 <div className="flex items-center justify-center gap-3 px-6 py-5">
                   {camState === "idle" && (
                     <button onClick={iniciarCamara}
@@ -439,87 +603,112 @@ function SesionPage() {
                   {camState === "preview" && (
                     <button onClick={iniciarGrabacion}
                       className="flex items-center gap-2 rounded-full bg-red-600 px-6 py-3 text-sm font-bold text-white hover:opacity-90 animate-pulse-ring">
-                      <Video className="h-4 w-4" /> Iniciar grabación
+                      <Video className="h-4 w-4" /> Grabar muestra {muestraActual}
                     </button>
                   )}
                   {camState === "recording" && (
-                    <button onClick={detenerGrabacion}
+                    <button onClick={detenerYAnalizar}
                       className="flex items-center gap-2 rounded-full bg-foreground px-6 py-3 text-sm font-bold text-background hover:opacity-90">
                       <StopCircle className="h-4 w-4" /> Detener y analizar
                     </button>
                   )}
                 </div>
               )}
+                </div>
+              )}
 
-              {/* Resultados IA */}
-              {camState === "results" && iaResult && (
-                <div className="p-6 space-y-5">
-                  <div className="flex items-center gap-3">
-                    <BrainCircuit className="h-5 w-5 text-saboreo-purple" />
-                    <h3 className="font-display text-lg font-bold">Análisis IA completado</h3>
-                  </div>
-
-                  {/* Score */}
-                  <div className="flex items-center gap-6 rounded-2xl border border-border bg-muted/30 px-6 py-5">
-                    <div className="text-center">
-                      <p className={`font-display text-6xl font-black ${scoreColor(iaResult.score)}`}>{iaResult.score}</p>
-                      <p className="text-xs uppercase tracking-wider text-muted-foreground">Índice SABOREO</p>
+              {/* Resultados muestra actual */}
+              {(camState === "results" || camState === "done") && resultadoActual && (
+                <div className="p-6 space-y-4">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <BrainCircuit className="h-5 w-5 text-saboreo-purple" />
+                      <h3 className="font-display text-base font-bold">
+                        Muestra {resultadoActual.numero_muestra} — Análisis Claude
+                      </h3>
                     </div>
-                    <div className="flex-1 space-y-2">
-                      <div className="flex items-center justify-between text-sm">
-                        <span className="flex items-center gap-1.5 text-muted-foreground"><Clock className="h-3.5 w-3.5" /> Duración</span>
-                        <span className="font-semibold">{fmtDur(iaResult.duracion_seg)}</span>
-                      </div>
-                      <div className="flex items-center justify-between text-sm">
-                        <span className="flex items-center gap-1.5 text-muted-foreground"><Smile className="h-3.5 w-3.5" /> Emoción dominante</span>
-                        <span className="font-semibold capitalize">
-                          {Object.entries(iaResult.emociones).sort((a, b) => b[1] - a[1])[0][0]}
-                        </span>
-                      </div>
-                    </div>
+                    <span className={`font-display text-3xl font-black ${scoreColor(resultadoActual.score_ia)}`}>
+                      {resultadoActual.score_ia}
+                    </span>
                   </div>
 
                   {/* Emociones */}
-                  <div>
-                    <p className="mb-3 flex items-center gap-1.5 text-sm font-semibold">
-                      <BarChart3 className="h-4 w-4" /> Distribución de emociones
-                    </p>
-                    <div className="space-y-2">
-                      {Object.entries(iaResult.emociones)
-                        .sort((a, b) => b[1] - a[1])
-                        .map(([emo, pct]) => (
-                          <div key={emo} className="flex items-center gap-3">
-                            <span className="w-20 text-xs capitalize text-muted-foreground">{emo}</span>
-                            <div className="h-3 flex-1 overflow-hidden rounded-full bg-muted">
-                              <div
-                                className="h-full rounded-full transition-all duration-700"
-                                style={{
-                                  width: `${pct}%`,
-                                  backgroundColor: EMOCIONES_COLORES[emo] ?? "var(--saboreo-blue)",
-                                }}
-                              />
-                            </div>
-                            <span className="w-8 text-right text-xs font-semibold">{pct}%</span>
+                  <div className="space-y-1.5">
+                    {Object.entries(resultadoActual.emociones)
+                      .sort((a, b) => b[1] - a[1])
+                      .map(([emo, val]) => (
+                        <div key={emo} className="flex items-center gap-3">
+                          <span className="w-18 text-xs capitalize text-muted-foreground">{emo}</span>
+                          <div className="h-2.5 flex-1 overflow-hidden rounded-full bg-muted">
+                            <div className="h-full rounded-full transition-all duration-700"
+                              style={{ width: `${Math.round(val * 100)}%`, backgroundColor: EMOCIONES_COLORES[emo] ?? "var(--saboreo-blue)" }} />
                           </div>
-                        ))}
-                    </div>
+                          <span className="w-9 text-right text-xs font-semibold">{Math.round(val * 100)}%</span>
+                        </div>
+                      ))}
                   </div>
 
-                  <div className="flex gap-3">
-                    <button
-                      onClick={() => { setCurrentSesionId(null); setCamState("idle"); setIaResult(null); setVista("list"); }}
-                      className="flex-1 rounded-full border border-border py-2.5 text-sm font-semibold hover:bg-accent"
-                    >
-                      Ver historial
-                    </button>
-                    <button
-                      onClick={() => { setCurrentSesionId(null); setCamState("idle"); setIaResult(null);
-                        setForm({ titulo: "", participante_nombre: "", participante_edad: "", encuesta_id: "", notas: "" }); }}
-                      className="flex-1 rounded-full bg-foreground py-2.5 text-sm font-bold text-background hover:opacity-90"
-                    >
-                      Nueva sesión
-                    </button>
+                  {/* Metadata */}
+                  <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
+                    {resultadoActual.emocion_dominante && (
+                      <span className="flex items-center gap-1"><Smile className="h-3 w-3" /> {resultadoActual.emocion_dominante}</span>
+                    )}
+                    {resultadoActual.sentimiento_voz && (
+                      <span className={`font-semibold ${SENTIMIENTO_UI[resultadoActual.sentimiento_voz]?.color}`}>
+                        Voz: {SENTIMIENTO_UI[resultadoActual.sentimiento_voz]?.label}
+                      </span>
+                    )}
+                    {resultadoActual.duracion_seg != null && (
+                      <span className="flex items-center gap-1"><Clock className="h-3 w-3" /> {fmtDur(resultadoActual.duracion_seg)}</span>
+                    )}
+                    <span className="flex items-center gap-1"><Camera className="h-3 w-3" /> {resultadoActual.frames_analizados} frames</span>
                   </div>
+
+                  {/* Resumen Claude */}
+                  {resultadoActual.resumen_ia && (
+                    <p className="rounded-xl bg-saboreo-purple/8 px-4 py-3 text-sm italic text-muted-foreground">
+                      "{resultadoActual.resumen_ia}"
+                    </p>
+                  )}
+
+                  {/* Transcripción */}
+                  {resultadoActual.transcripcion && (
+                    <div className="rounded-xl border border-border bg-muted/30 px-4 py-3">
+                      <p className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Transcripción</p>
+                      <p className="text-sm">{resultadoActual.transcripcion}</p>
+                    </div>
+                  )}
+
+                  {/* Navegación */}
+                  {camState === "results" && (
+                    <button onClick={siguienteMuestra}
+                      className="flex w-full items-center justify-center gap-2 rounded-full bg-foreground py-3 text-sm font-bold text-background hover:opacity-90">
+                      Siguiente muestra ({muestraActual + 1} / {numMuestras}) <ChevronRight className="h-4 w-4" />
+                    </button>
+                  )}
+
+                  {camState === "done" && (
+                    <div className="space-y-3">
+                      <div className="rounded-xl border border-saboreo-green/30 bg-saboreo-green/8 px-4 py-3 text-center">
+                        <p className="text-sm font-bold text-saboreo-green">✓ Sesión completada — {resultadosMuestras.length} muestras analizadas</p>
+                        <p className="mt-0.5 text-xs text-muted-foreground">
+                          Score promedio: <strong className={scoreColor(Math.round(resultadosMuestras.reduce((a, r) => a + r.score_ia, 0) / resultadosMuestras.length))}>
+                            {Math.round(resultadosMuestras.reduce((a, r) => a + r.score_ia, 0) / resultadosMuestras.length)}
+                          </strong>
+                        </p>
+                      </div>
+                      <div className="flex gap-3">
+                        <button onClick={() => setVista("list")}
+                          className="flex-1 rounded-full border border-border py-2.5 text-sm font-semibold hover:bg-accent">
+                          Ver historial
+                        </button>
+                        <button onClick={nuevaSesion}
+                          className="flex-1 rounded-full bg-foreground py-2.5 text-sm font-bold text-background hover:opacity-90">
+                          Nueva sesión
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
