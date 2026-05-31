@@ -607,44 +607,48 @@ function VideoRecorderMuestra({
     }
     setFase("analizando");
 
-    // Claude + upload en paralelo
-    const apiBase = import.meta.env.VITE_API_URL ?? "http://localhost:3001";
-    const [claudeResult, uploadResult] = await Promise.allSettled([
-      apiFetch<{
+    // 1. Subir video al servidor
+    let video_url: string | undefined;
+    if (videoBlob.size > 500) {
+      try {
+        const apiBase = import.meta.env.VITE_API_URL ?? "http://localhost:3001";
+        const uploadRes = await fetch(
+          `${apiBase}/api/encuestas/publicas/${encuestaId}/muestras/${muestraNum}/video`,
+          { method: "POST", headers: { "Content-Type": "video/webm" }, body: videoBlob }
+        );
+        if (uploadRes.ok) {
+          const data = await uploadRes.json() as { video_url: string };
+          video_url = data.video_url;
+        }
+      } catch {
+        // upload no crítico — continuar con análisis
+      }
+    }
+
+    // 2. Análisis Claude
+    try {
+      const r = await apiFetch<{
         score_ia: number; emocion_dominante: string; sentimiento_voz: string;
         resumen: string; promedio: Record<string, number>;
       }>(`/api/encuestas/publicas/${encuestaId}/analizar-video`, {
         method: "POST",
         body: JSON.stringify({ frames }),
-      }),
-      videoBlob.size > 500
-        ? fetch(
-            `${apiBase}/api/encuestas/publicas/${encuestaId}/muestras/${muestraNum}/video`,
-            { method: "POST", headers: { "Content-Type": "video/webm" }, body: videoBlob }
-          ).then((res) => res.ok ? res.json() as Promise<{ video_url: string }> : Promise.resolve(undefined))
-        : Promise.resolve(undefined),
-    ]);
-
-    if (claudeResult.status === "rejected") {
-      setErrMsg(claudeResult.reason instanceof Error ? claudeResult.reason.message : "Error al analizar el video.");
-      setFase("error"); return;
+      });
+      setResultado({ score_ia: r.score_ia, emocion_dominante: r.emocion_dominante, resumen: r.resumen });
+      setFase("listo");
+      onDone({
+        score_ia: r.score_ia,
+        emocion_dominante: r.emocion_dominante,
+        sentimiento_voz: r.sentimiento_voz,
+        resumen: r.resumen,
+        emociones: r.promedio ?? {},
+        frames_analizados: frames.length,
+        video_url,
+      });
+    } catch (e) {
+      setErrMsg(e instanceof Error ? e.message : "Error al analizar el video.");
+      setFase("error");
     }
-
-    const r = claudeResult.value;
-    const uploadData = uploadResult.status === "fulfilled" ? uploadResult.value as { video_url?: string } | undefined : undefined;
-    const video_url = uploadData?.video_url;
-
-    setResultado({ score_ia: r.score_ia, emocion_dominante: r.emocion_dominante, resumen: r.resumen });
-    setFase("listo");
-    onDone({
-      score_ia: r.score_ia,
-      emocion_dominante: r.emocion_dominante,
-      sentimiento_voz: r.sentimiento_voz,
-      resumen: r.resumen,
-      emociones: r.promedio ?? {},
-      frames_analizados: frames.length,
-      video_url,
-    });
   }
 
   function iniciar() {
