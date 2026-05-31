@@ -26,14 +26,26 @@ router.get("/", requireAuth, async (req: AuthRequest, res: Response) => {
     WHERE r.encuesta_id = $1
   `, [id]);
 
-  // Promedio por muestra (panel multi-muestra)
+  // Promedio por muestra (panel multi-muestra) — incluye score IA promedio
   const { rows: porMuestra } = await pool.query(`
     SELECT
       em.numero_muestra,
-      ROUND(AVG(em.calificacion)::numeric, 2) AS promedio,
-      COUNT(em.id)::int AS cantidad,
-      MIN(em.calificacion)::int AS minimo,
-      MAX(em.calificacion)::int AS maximo
+      ROUND(AVG(em.calificacion)::numeric, 2)  AS promedio,
+      COUNT(em.id)::int                        AS cantidad,
+      MIN(em.calificacion)::int                AS minimo,
+      MAX(em.calificacion)::int                AS maximo,
+      ROUND(AVG(em.score_ia)::numeric, 1)      AS promedio_score_ia,
+      (
+        SELECT em2.emocion_dominante
+        FROM evaluaciones_muestra em2
+        JOIN respuestas_encuesta r2 ON r2.id = em2.respuesta_id
+        WHERE r2.encuesta_id = $1
+          AND em2.numero_muestra = em.numero_muestra
+          AND em2.emocion_dominante IS NOT NULL
+        GROUP BY em2.emocion_dominante
+        ORDER BY COUNT(*) DESC
+        LIMIT 1
+      ) AS emocion_dominante_comun
     FROM evaluaciones_muestra em
     JOIN respuestas_encuesta r ON r.id = em.respuesta_id
     WHERE r.encuesta_id = $1 AND em.calificacion IS NOT NULL
@@ -75,9 +87,15 @@ router.get("/", requireAuth, async (req: AuthRequest, res: Response) => {
     SELECT r.*,
       COALESCE(
         json_agg(json_build_object(
-          'numero_muestra', em.numero_muestra,
-          'calificacion', em.calificacion,
-          'observaciones', em.observaciones
+          'numero_muestra',    em.numero_muestra,
+          'calificacion',      em.calificacion,
+          'observaciones',     em.observaciones,
+          'score_ia',          em.score_ia,
+          'emociones',         em.emociones,
+          'emocion_dominante', em.emocion_dominante,
+          'sentimiento_voz',   em.sentimiento_voz,
+          'resumen_ia',        em.resumen_ia,
+          'frames_analizados', em.frames_analizados
         ) ORDER BY em.numero_muestra) FILTER (WHERE em.id IS NOT NULL),
         '[]'
       ) AS evaluaciones

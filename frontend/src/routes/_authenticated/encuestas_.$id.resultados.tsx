@@ -1,6 +1,6 @@
 import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
 import { useState, useEffect } from "react";
-import { ArrowLeft, Users, BarChart2, ChevronDown, ChevronUp, FileSpreadsheet, FileText } from "lucide-react";
+import { ArrowLeft, Users, BarChart2, ChevronDown, ChevronUp, FileSpreadsheet, FileText, Brain } from "lucide-react";
 import {
   BarChart, Bar, XAxis, YAxis, ResponsiveContainer, Tooltip, CartesianGrid,
   LineChart, Line, PieChart, Pie, Cell, Legend,
@@ -24,7 +24,7 @@ const GENERO_COLORS: Record<string, string> = {
 interface Resultados {
   encuesta: { titulo: string; producto: string; estado: string; num_muestras: number; atributos: string[] };
   kpis: { total_respuestas: number; total_participantes: number; con_alergia: number; promedio_escala_unica: number | null };
-  por_muestra: { numero_muestra: number; promedio: number; cantidad: number; minimo: number; maximo: number }[];
+  por_muestra: { numero_muestra: number; promedio: number; cantidad: number; minimo: number; maximo: number; promedio_score_ia: number | null; emocion_dominante_comun: string | null }[];
   dist_escala: { valor: number; cantidad: number }[];
   dist_genero: { genero: string; cantidad: number }[];
   dist_edad: { edad: number; cantidad: number }[];
@@ -34,7 +34,12 @@ interface Resultados {
     consentimiento: boolean; tiene_alergia: boolean | null;
     escala_hedonica: number | null; comentarios: string | null;
     created_at: string;
-    evaluaciones: { numero_muestra: number; calificacion: number | null; observaciones: string | null }[];
+    evaluaciones: {
+      numero_muestra: number; calificacion: number | null; observaciones: string | null;
+      score_ia?: number | null; emociones?: Record<string, number> | null;
+      emocion_dominante?: string | null; sentimiento_voz?: string | null;
+      resumen_ia?: string | null; frames_analizados?: number | null;
+    }[];
   }[];
 }
 
@@ -75,11 +80,18 @@ function exportXLSX(data: Resultados) {
 
     // Hoja 3: Evaluaciones por muestra
     if (data.respuestas.some((r) => r.evaluaciones?.length > 0)) {
-      const evalHeader = ["Participante", "Muestra", "Calificación", "Observaciones"];
+      const hasIA = data.respuestas.some((r) => r.evaluaciones?.some((ev) => ev.score_ia != null));
+      const evalHeader = hasIA
+        ? ["Participante", "Muestra", "Calificación", "Observaciones", "Score IA", "Emoción dominante", "Sentimiento voz", "Resumen IA", "Frames"]
+        : ["Participante", "Muestra", "Calificación", "Observaciones"];
       const evalRows: (string | number)[][] = [];
       for (const r of data.respuestas) {
         for (const ev of r.evaluaciones ?? []) {
-          evalRows.push([r.participante_nombre, ev.numero_muestra, ev.calificacion ?? "", ev.observaciones ?? ""]);
+          evalRows.push(hasIA
+            ? [r.participante_nombre, ev.numero_muestra, ev.calificacion ?? "", ev.observaciones ?? "",
+               ev.score_ia ?? "", ev.emocion_dominante ?? "", ev.sentimiento_voz ?? "", ev.resumen_ia ?? "", ev.frames_analizados ?? ""]
+            : [r.participante_nombre, ev.numero_muestra, ev.calificacion ?? "", ev.observaciones ?? ""]
+          );
         }
       }
       utils.book_append_sheet(wb, utils.aoa_to_sheet([evalHeader, ...evalRows]), "Evaluaciones por muestra");
@@ -184,14 +196,20 @@ async function exportPDF(data: Resultados) {
     y += 8;
 
     const allEvalRows: string[][] = [];
+    const hasIA = data.respuestas.some((r) => r.evaluaciones?.some((ev) => ev.score_ia != null));
     for (const r of data.respuestas) {
       for (const ev of r.evaluaciones ?? []) {
-        allEvalRows.push([r.participante_nombre, String(ev.numero_muestra), String(ev.calificacion ?? "—"), ev.observaciones ?? "—"]);
+        const row = [r.participante_nombre, String(ev.numero_muestra), String(ev.calificacion ?? "—"), ev.observaciones ?? "—"];
+        if (hasIA) row.push(ev.score_ia != null ? String(ev.score_ia) : "—", ev.emocion_dominante ?? "—", ev.sentimiento_voz ?? "—");
+        allEvalRows.push(row);
       }
     }
+    const evalPdfHead = hasIA
+      ? ["Participante", "Muestra", "Calif.", "Observaciones", "Score IA", "Emoción", "Sentimiento"]
+      : ["Participante", "Muestra", "Calificación", "Observaciones"];
     autoTable(doc, {
       startY: y,
-      head: [["Participante", "Muestra", "Calificación", "Observaciones"]],
+      head: [evalPdfHead],
       body: allEvalRows,
       styles: { fontSize: 8 },
       headStyles: { fillColor: [30, 41, 59] },
@@ -352,6 +370,36 @@ function ResultadosPage() {
               )}
             </div>
 
+            {/* Score IA por muestra (solo si hay datos de video) */}
+            {por_muestra.some((m) => m.promedio_score_ia != null) && (
+              <div className="rounded-2xl border border-border bg-card p-6 shadow-card">
+                <h2 className="font-display flex items-center gap-2 text-base font-bold">
+                  <Brain className="h-4 w-4 text-saboreo-blue" /> Score IA por muestra
+                </h2>
+                <p className="mb-4 text-xs text-muted-foreground">Promedio del análisis de expresiones faciales (0–100)</p>
+                <div className="space-y-3">
+                  {por_muestra.filter((m) => m.promedio_score_ia != null).map((m) => (
+                    <div key={m.numero_muestra} className="flex items-center gap-3">
+                      <span className="w-12 shrink-0 text-xs font-semibold text-muted-foreground">M{m.numero_muestra}</span>
+                      <div className="flex-1 overflow-hidden rounded-full bg-muted h-3">
+                        <div
+                          className={`h-3 rounded-full transition-all ${
+                            (m.promedio_score_ia ?? 0) >= 70 ? 'bg-green-500' :
+                            (m.promedio_score_ia ?? 0) >= 40 ? 'bg-yellow-400' : 'bg-red-400'
+                          }`}
+                          style={{ width: `${m.promedio_score_ia}%` }}
+                        />
+                      </div>
+                      <span className="w-12 shrink-0 text-right text-sm font-bold">{m.promedio_score_ia}/100</span>
+                      {m.emocion_dominante_comun && (
+                        <span className="rounded-full bg-blue-50 px-2 py-0.5 text-xs font-medium text-blue-700">{m.emocion_dominante_comun}</span>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
             {/* Demografía */}
             <div className="grid gap-4 lg:grid-cols-2">
               {dist_genero.length > 0 && (
@@ -433,6 +481,13 @@ function ResultadosPage() {
                                 <tr className="border-b border-border text-xs text-muted-foreground">
                                   <th className="pb-2 text-left font-semibold">Muestra</th>
                                   <th className="pb-2 text-center font-semibold">Calificación</th>
+                                  {evals.some((ev) => ev.score_ia != null) && (
+                                    <>
+                                      <th className="pb-2 text-center font-semibold">Score IA</th>
+                                      <th className="pb-2 text-left font-semibold">Emoción</th>
+                                      <th className="pb-2 text-left font-semibold">Sentimiento</th>
+                                    </>
+                                  )}
                                   <th className="pb-2 text-left font-semibold">Observaciones</th>
                                 </tr>
                               </thead>
@@ -445,12 +500,48 @@ function ResultadosPage() {
                                         ? <span title={ESCALA_LABELS[ev.calificacion]}>{ESCALA_EMOJIS[ev.calificacion]} <strong>{ev.calificacion}</strong></span>
                                         : "—"}
                                     </td>
+                                    {evals.some((e) => e.score_ia != null) && (
+                                      <>
+                                        <td className="py-1.5 text-center">
+                                          {ev.score_ia != null
+                                            ? <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-bold ${
+                                                ev.score_ia >= 70 ? 'bg-green-100 text-green-800' :
+                                                ev.score_ia >= 40 ? 'bg-yellow-100 text-yellow-800' :
+                                                'bg-red-100 text-red-800'}`}>{ev.score_ia}</span>
+                                            : "—"}
+                                        </td>
+                                        <td className="py-1.5 text-xs">
+                                          {ev.emocion_dominante
+                                            ? <span className="rounded-full bg-blue-50 px-2 py-0.5 text-blue-700 font-medium">{ev.emocion_dominante}</span>
+                                            : "—"}
+                                        </td>
+                                        <td className="py-1.5 text-xs">
+                                          {ev.sentimiento_voz === 'positivo' && <span className="text-green-600 font-semibold">positivo</span>}
+                                          {ev.sentimiento_voz === 'negativo' && <span className="text-red-600 font-semibold">negativo</span>}
+                                          {ev.sentimiento_voz === 'neutro' && <span className="text-gray-500">neutro</span>}
+                                          {!ev.sentimiento_voz && "—"}
+                                        </td>
+                                      </>
+                                    )}
                                     <td className="py-1.5 text-xs text-muted-foreground">{ev.observaciones || "—"}</td>
                                   </tr>
                                 ))}
                               </tbody>
                             </table>
                           </div>
+                          {evals.some((ev) => ev.resumen_ia) && (
+                            <div className="mt-3 space-y-2">
+                              <p className="flex items-center gap-1.5 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                                <Brain className="h-3.5 w-3.5" /> Resúmenes Claude Vision
+                              </p>
+                              {evals.filter((ev) => ev.resumen_ia).map((ev) => (
+                                <div key={ev.numero_muestra} className="rounded-lg bg-card border border-border px-3 py-2">
+                                  <span className="mr-2 text-xs font-bold text-muted-foreground">#{ev.numero_muestra}</span>
+                                  <span className="text-xs text-foreground italic">{ev.resumen_ia}</span>
+                                </div>
+                              ))}
+                            </div>
+                          )}
                         </div>
                       )}
                     </div>
