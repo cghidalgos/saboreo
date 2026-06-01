@@ -11,9 +11,9 @@ import { resultadosRouter } from "./routes/resultados.js";
 import { consentimientosRouter } from "./routes/consentimientos.js";
 
 const app = express();
-const PORT = process.env.PORT ?? 3001;
+const PORT = process.env.PORT ?? 9021;
 
-app.use(cors({ origin: process.env.FRONTEND_URL ?? "http://localhost:3000" }));
+app.use(cors({ origin: process.env.FRONTEND_URL ?? "http://localhost:9020" }));
 app.use(express.json());
 
 // Serve uploaded videos

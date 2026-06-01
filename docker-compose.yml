@@ -28,15 +28,15 @@ services:
       context: ./backend
       target: dev
     ports:
-      - "3001:3001"
+      - "9021:9021"
     volumes:
       - ./backend:/app
       - backend_modules:/app/node_modules
       - ./uploads:/app/uploads
     environment:
       NODE_ENV: development
-      PORT: 3001
-      FRONTEND_URL: http://localhost:3000
+      PORT: 9021
+      FRONTEND_URL: http://localhost:9020
       DATABASE_URL: postgresql://saboreo:saboreo_secret@postgres:5432/saboreo
       JWT_SECRET: dev-secret-change-in-production
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
@@ -50,13 +50,13 @@ services:
       context: ./frontend
       target: dev
     ports:
-      - "3000:3000"
+      - "9020:9020"
     volumes:
       - ./frontend:/app
       - frontend_modules:/app/node_modules
     environment:
       NODE_ENV: development
-      VITE_API_URL: http://localhost:3001
+      VITE_API_URL: http://localhost:9021
     depends_on:
       - backend
 

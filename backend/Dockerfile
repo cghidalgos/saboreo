@@ -10,7 +10,7 @@ RUN npm ci
 FROM base AS dev
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
-EXPOSE 3001
+EXPOSE 9021
 CMD ["npm", "run", "dev"]
 
 # Build de producción
@@ -25,5 +25,5 @@ WORKDIR /app
 COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/package.json ./
-EXPOSE 3001
+EXPOSE 9021
 CMD ["npm", "start"]
