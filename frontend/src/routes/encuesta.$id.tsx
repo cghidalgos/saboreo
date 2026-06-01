@@ -67,6 +67,7 @@ interface EvalMuestraState {
   resumen_ia?: string;
   frames_analizados?: number;
   video_url?: string;
+  transcripcion?: string;
 }
 
 const ESCALA = [
@@ -175,6 +176,7 @@ function TomarEncuestaPage() {
             resumen_ia: m.resumen_ia,
             frames_analizados: m.frames_analizados,
             video_url: m.video_url,
+            transcripcion: m.transcripcion,
           })),
         }),
       });
@@ -386,7 +388,7 @@ function TomarEncuestaPage() {
                                 emociones: r.emociones, emocion_dominante: r.emocion_dominante,
                                 sentimiento_voz: r.sentimiento_voz, resumen_ia: r.resumen,
                                 frames_analizados: r.frames_analizados,
-                                video_url: r.video_url }
+                                video_url: r.video_url, transcripcion: r.transcripcion }
                             : mm
                         )
                       )
@@ -533,6 +535,7 @@ function VideoRecorderMuestra({
     emociones: Record<string, number>;
     frames_analizados: number;
     video_url?: string;
+    transcripcion?: string;
   }) => void;
 }) {
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -542,6 +545,9 @@ function VideoRecorderMuestra({
   const captureRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const countdownRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const speechRef = useRef<any>(null);
+  const transcripcionRef = useRef<string>("");
 
   const [fase, setFase] = useState<"preview" | "grabando" | "analizando" | "listo" | "error">("preview");
   const [errMsg, setErrMsg] = useState<string | null>(null);
@@ -550,7 +556,7 @@ function VideoRecorderMuestra({
 
   useEffect(() => {
     navigator.mediaDevices
-      .getUserMedia({ video: { facingMode: "user", width: 320, height: 240 }, audio: false })
+      .getUserMedia({ video: { facingMode: "user", width: 320, height: 240 }, audio: true })
       .then((stream) => {
         streamRef.current = stream;
         if (videoRef.current) videoRef.current.srcObject = stream;
@@ -625,14 +631,18 @@ function VideoRecorderMuestra({
       }
     }
 
-    // 2. Análisis Claude
+    // Detener reconocimiento de voz si sigue activo
+    if (speechRef.current) { try { speechRef.current.stop(); } catch { /* ignore */ } speechRef.current = null; }
+    const transcripcion = transcripcionRef.current.trim() || undefined;
+
+    // 2. Análisis Claude (con transcripción si existe)
     try {
       const r = await apiFetch<{
         score_ia: number; emocion_dominante: string; sentimiento_voz: string;
         resumen: string; promedio: Record<string, number>;
       }>(`/api/encuestas/publicas/${encuestaId}/analizar-video`, {
         method: "POST",
-        body: JSON.stringify({ frames }),
+        body: JSON.stringify({ frames, transcripcion }),
       });
       setResultado({ score_ia: r.score_ia, emocion_dominante: r.emocion_dominante, resumen: r.resumen });
       setFase("listo");
@@ -644,6 +654,7 @@ function VideoRecorderMuestra({
         emociones: r.promedio ?? {},
         frames_analizados: frames.length,
         video_url,
+        transcripcion,
       });
     } catch (e) {
       setErrMsg(e instanceof Error ? e.message : "Error al analizar el video.");
@@ -654,7 +665,28 @@ function VideoRecorderMuestra({
   function iniciar() {
     framesRef.current = [];
     chunksRef.current = [];
+    transcripcionRef.current = "";
     setFase("grabando");
+    // Iniciar reconocimiento de voz (Web Speech API)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const SpeechRecognition = (window as any).SpeechRecognition ?? (window as any).webkitSpeechRecognition;
+    if (SpeechRecognition) {
+      try {
+        const sr = new SpeechRecognition();
+        sr.lang = "es-ES";
+        sr.continuous = true;
+        sr.interimResults = false;
+        sr.onresult = (e: SpeechRecognitionEvent) => {
+          for (let i = e.resultIndex; i < e.results.length; i++) {
+            if (e.results[i].isFinal) {
+              transcripcionRef.current += (transcripcionRef.current ? " " : "") + e.results[i][0].transcript;
+            }
+          }
+        };
+        sr.start();
+        speechRef.current = sr;
+      } catch { /* navegador sin soporte */ }
+    }
     let t = 15;
     setTiempoRestante(t);
     capturarFrame();
@@ -667,8 +699,10 @@ function VideoRecorderMuestra({
     // Grabar video con MediaRecorder
     if (streamRef.current) {
       try {
-        const mimeType = MediaRecorder.isTypeSupported("video/webm;codecs=vp9")
-          ? "video/webm;codecs=vp9"
+        const mimeType = MediaRecorder.isTypeSupported("video/webm;codecs=vp9,opus")
+          ? "video/webm;codecs=vp9,opus"
+          : MediaRecorder.isTypeSupported("video/webm;codecs=vp8,opus")
+          ? "video/webm;codecs=vp8,opus"
           : MediaRecorder.isTypeSupported("video/webm") ? "video/webm" : "";
         const mr = new MediaRecorder(streamRef.current, mimeType ? { mimeType } : undefined);
         mr.ondataavailable = (e) => { if (e.data.size > 0) chunksRef.current.push(e.data); };

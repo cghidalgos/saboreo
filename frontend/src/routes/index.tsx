@@ -2,7 +2,6 @@ import { createFileRoute } from "@tanstack/react-router";
 import { Navbar } from "@/components/saboreo/Navbar";
 import { Hero } from "@/components/saboreo/Hero";
 import { EncuestasActivas } from "@/components/saboreo/EncuestasActivas";
-import { Modules } from "@/components/saboreo/Modules";
 import { AIPipeline } from "@/components/saboreo/AIPipeline";
 import { Footer } from "@/components/saboreo/Footer";
 
@@ -25,7 +24,6 @@ function Landing() {
       <main id="plataforma">
         <Hero />
         <EncuestasActivas />
-        <Modules />
         <AIPipeline />
       </main>
       <Footer />

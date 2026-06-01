@@ -119,7 +119,7 @@ export function AppLayout({ children, title, subtitle, actions }: AppLayoutProps
       {/* Main */}
       <div className="flex min-w-0 flex-1 flex-col">
         {/* Top bar */}
-        <header className="sticky top-0 z-10 flex h-16 items-center gap-3 border-b border-border bg-background/80 px-6 backdrop-blur-xl">
+        <header className="sticky top-0 z-10 flex h-16 items-center gap-3 border-b border-border bg-background/80 px-4 backdrop-blur-xl sm:px-6">
           <button
             className="grid h-9 w-9 place-items-center rounded-full border border-border hover:bg-accent lg:hidden"
             onClick={() => setSidebarOpen(true)}
@@ -134,7 +134,7 @@ export function AppLayout({ children, title, subtitle, actions }: AppLayoutProps
         </header>
 
         {/* Content */}
-        <main className="flex-1 p-6">
+        <main className="flex-1 p-4 sm:p-6">
           {children}
         </main>
       </div>

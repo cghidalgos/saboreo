@@ -120,6 +120,28 @@ export async function analizarMuestraConClaude(
   const match = text.match(/\{[\s\S]*\}/);
   if (!match) throw new Error("La respuesta de Claude no contiene JSON válido.");
 
-  const parsed = JSON.parse(match[0]) as ResultadoClaudeVision;
+  const raw = JSON.parse(match[0]) as Record<string, unknown>;
+
+  // Normalizar sentimiento_voz al enum esperado
+  const svRaw = String(raw.sentimiento_voz ?? "").toLowerCase();
+  const sentimiento_voz: "positivo" | "neutro" | "negativo" =
+    svRaw.startsWith("pos") ? "positivo"
+    : svRaw.startsWith("neg") ? "negativo"
+    : "neutro";
+
+  // Clamp score_ia a 0-100
+  const scoreRaw = Number(raw.score_ia);
+  const score_ia = isNaN(scoreRaw) ? 50 : Math.max(0, Math.min(100, Math.round(scoreRaw)));
+
+  // Truncar resumen a 1000 caracteres
+  const resumen = String(raw.resumen ?? "").slice(0, 1000);
+
+  const parsed: ResultadoClaudeVision = {
+    promedio: (raw.promedio as EmocionesMuestra) ?? { alegria: 0, disgusto: 0, sorpresa: 0, neutral: 0, tristeza: 0, interes: 0 },
+    emocion_dominante: String(raw.emocion_dominante ?? "neutral"),
+    sentimiento_voz,
+    score_ia,
+    resumen,
+  };
   return parsed;
 }

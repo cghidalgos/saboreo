@@ -15,15 +15,8 @@ export function Navbar() {
           </div>
           <div className="flex flex-col leading-none">
             <span className="font-display text-xl font-black tracking-tight">SABOREO</span>
-            <span className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground">research lab</span>
           </div>
         </Link>
-
-        <nav className="hidden items-center gap-8 text-sm font-medium md:flex">
-          <a href="#plataforma" className="text-muted-foreground hover:text-foreground">Plataforma</a>
-          <a href="#modulos" className="text-muted-foreground hover:text-foreground">Módulos</a>
-          <a href="#ia" className="text-muted-foreground hover:text-foreground">IA multimodal</a>
-        </nav>
 
         <div className="flex items-center gap-2">
           {user ? (
@@ -55,13 +48,6 @@ export function Navbar() {
                 className="hidden rounded-full border border-border bg-background px-4 py-2 text-sm font-semibold hover:bg-accent sm:inline-flex"
               >
                 Iniciar sesión
-              </Link>
-              <Link
-                to="/auth"
-                search={{ mode: "signup" as const, redirect: "/dashboard" }}
-                className="inline-flex items-center gap-1.5 rounded-full bg-foreground px-4 py-2 text-sm font-semibold text-background hover:scale-[1.02]"
-              >
-                Crear cuenta
               </Link>
             </>
           )}

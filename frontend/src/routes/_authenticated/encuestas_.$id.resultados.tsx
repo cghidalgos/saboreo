@@ -1,6 +1,6 @@
 import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
-import { useState, useEffect } from "react";
-import { ArrowLeft, Users, BarChart2, ChevronDown, ChevronUp, FileSpreadsheet, FileText, Brain } from "lucide-react";
+import { useState, useEffect, useRef } from "react";
+import { ArrowLeft, Users, BarChart2, ChevronDown, ChevronUp, FileSpreadsheet, FileText, Brain, Loader2, Send, MessageCircle, Trash2 } from "lucide-react";
 import {
   BarChart, Bar, XAxis, YAxis, ResponsiveContainer, Tooltip, CartesianGrid,
   LineChart, Line, PieChart, Pie, Cell, Legend,
@@ -38,7 +38,7 @@ interface Resultados {
       numero_muestra: number; calificacion: number | null; observaciones: string | null;
       score_ia?: number | null; emociones?: Record<string, number> | null;
       emocion_dominante?: string | null; sentimiento_voz?: string | null;
-      resumen_ia?: string | null; frames_analizados?: number | null; video_url?: string | null;
+      resumen_ia?: string | null; frames_analizados?: number | null; video_url?: string | null; transcripcion?: string | null;
     }[];
   }[];
 }
@@ -229,6 +229,46 @@ function ResultadosPage() {
   const [loading, setLoading] = useState(true);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [exportando, setExportando] = useState<"xlsx" | "pdf" | null>(null);
+  const [resumenes, setResumenes] = useState<Record<string, { loading: boolean; resumen?: string; muestra_favorita?: number | null }>>({});
+  const [modalEmociones, setModalEmociones] = useState<{ emociones: Record<string, number>; dominante: string; muestra: number } | null>(null);
+
+  type ChatMsg = { role: "user" | "assistant"; content: string };
+  const [chatMsgs, setChatMsgs] = useState<ChatMsg[]>([]);
+  const [chatInput, setChatInput] = useState("");
+  const [chatLoading, setChatLoading] = useState(false);
+  const chatEndRef = useRef<HTMLDivElement>(null);
+  const chatScrollRef = useRef<HTMLDivElement>(null);
+  const chatIniciadoRef = useRef(false);
+
+  const enviarChatRef = useRef<(mensaje?: string) => Promise<void>>(async () => {});
+
+  async function enviarChat(mensaje?: string) {
+    const texto = mensaje ?? chatInput.trim();
+    if (!texto && chatMsgs.length > 0) return;
+    if (chatLoading) return;
+    setChatLoading(true);
+    const historialSinUltimo = texto ? [...chatMsgs] : [];
+    if (texto) setChatMsgs((p) => [...p, { role: "user", content: texto }]);
+    setChatInput("");
+    try {
+      const res = await apiFetch<{ respuesta: string }>(`/api/encuestas/${id}/resultados/chat`, {
+        method: "POST",
+        body: JSON.stringify({ mensaje: texto || undefined, historial: historialSinUltimo }),
+      });
+      setChatMsgs((p) => [...p, { role: "assistant", content: res.respuesta }]);
+    } catch {
+      setChatMsgs((p) => [...p, { role: "assistant", content: "No se pudo obtener respuesta. Intenta de nuevo." }]);
+    } finally {
+      setChatLoading(false);
+    }
+  }
+  enviarChatRef.current = enviarChat;
+
+  useEffect(() => {
+    if (chatScrollRef.current) {
+      chatScrollRef.current.scrollTop = chatScrollRef.current.scrollHeight;
+    }
+  }, [chatMsgs]);
 
   useEffect(() => {
     apiFetch<Resultados>(`/api/encuestas/${id}/resultados`)
@@ -237,15 +277,46 @@ function ResultadosPage() {
       .finally(() => setLoading(false));
   }, [id]);
 
+  // Resumen inicial automático cuando cargan los datos
+  useEffect(() => {
+    if (data && data.kpis.total_respuestas > 0 && !chatIniciadoRef.current) {
+      chatIniciadoRef.current = true;
+      enviarChatRef.current();
+    }
+  }, [data]);
+
   if (loading) return <AppLayout title="Resultados"><div className="flex h-64 items-center justify-center text-muted-foreground">Cargando…</div></AppLayout>;
   if (!data) return <AppLayout title="Resultados"><div className="flex h-64 items-center justify-center text-muted-foreground">Sin datos</div></AppLayout>;
 
   const { encuesta, kpis, por_muestra, dist_escala, dist_genero, dist_edad, respuestas } = data;
+  const chipsPreguntas = (() => {
+    const qs: string[] = [];
+    const generos = dist_genero.map((g) => g.genero.toLowerCase());
+    const tieneNina = generos.some((g) => g.includes("ni"));
+    const tieneMultiGenero = dist_genero.length >= 2;
+    const tieneEdades = dist_edad.length >= 2;
+    const tieneIA = por_muestra.some((m) => m.promedio_score_ia != null);
+    const numMuestras = por_muestra.length;
+
+    if (numMuestras >= 2) {
+      const nombres = por_muestra.map((m) => `Muestra #${m.numero_muestra}`).join(" vs ");
+      qs.push(`¿Cuál fue la preferida: ${nombres}?`);
+    }
+    if (tieneMultiGenero && tieneNina) qs.push("¿Qué muestra prefirieron las niñas vs los niños?");
+    else if (tieneMultiGenero) qs.push(`¿Hubo diferencias entre ${dist_genero.map((g) => g.genero).join(" y ")}?`);
+    if (tieneEdades) qs.push("¿Hubo diferencias por grupo de edad?");
+    if (tieneIA) qs.push("¿Qué emociones predominaron en cada muestra?");
+    qs.push("¿Qué comentarios dejaron los participantes?");
+    qs.push("¿Qué muestra recomendarías lanzar al mercado?");
+    return qs;
+  })();
+
   const promedioGeneral = por_muestra.length
     ? (por_muestra.reduce((s, m) => s + Number(m.promedio), 0) / por_muestra.length).toFixed(2)
     : kpis.promedio_escala_unica?.toFixed(2) ?? "—";
 
   return (
+    <>
     <AppLayout
       title="Resultados"
       subtitle={encuesta.titulo}
@@ -423,7 +494,7 @@ function ResultadosPage() {
                   <h2 className="font-display text-base font-bold">Edad</h2>
                   <div className="h-52">
                     <ResponsiveContainer>
-                      <BarChart data={dist_edad.map((e) => ({ name: `${e.edad}a`, val: e.cantidad }))}>
+                      <BarChart data={dist_edad.map((e) => ({ name: `${e.edad} años`, val: e.cantidad }))}>
                         <CartesianGrid stroke="var(--border)" strokeDasharray="3 3" vertical={false} />
                         <XAxis dataKey="name" stroke="var(--muted-foreground)" fontSize={11} />
                         <YAxis allowDecimals={false} stroke="var(--muted-foreground)" fontSize={11} />
@@ -434,6 +505,111 @@ function ResultadosPage() {
                   </div>
                 </div>
               )}
+            </div>
+
+            {/* Chat IA sobre resultados */}
+            <div className="rounded-2xl border border-border bg-card shadow-card overflow-hidden">
+              <div className="flex items-center gap-2 border-b border-border bg-gradient-to-r from-violet-50 to-blue-50 px-6 py-4">
+                <div className="grid h-8 w-8 place-items-center rounded-lg bg-violet-100">
+                  <MessageCircle className="h-4 w-4 text-violet-600" />
+                </div>
+                <div className="flex-1">
+                  <p className="font-display font-bold text-sm">SaBot</p>
+                  <p className="text-xs text-muted-foreground">Pregúntale sobre los datos de esta encuesta</p>
+                </div>
+                {chatMsgs.length > 0 && (
+                  <button
+                    onClick={() => { setChatMsgs([]); chatIniciadoRef.current = false; }}
+                    title="Limpiar conversación"
+                    className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs text-muted-foreground hover:bg-red-50 hover:text-red-500 transition-colors"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                    Limpiar
+                  </button>
+                )}
+              </div>
+              {/* Mensajes */}
+              <div ref={chatScrollRef} className="flex flex-col gap-3 px-6 py-4 max-h-80 overflow-y-auto">
+                {chatMsgs.length === 0 && chatLoading && (
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <Loader2 className="h-4 w-4 animate-spin text-violet-500" />
+                    Analizando resultados…
+                  </div>
+                )}
+                {chatMsgs.map((m, i) => (
+                  <div key={i} className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}>
+                    {m.role === "assistant" && (
+                      <div className="mr-2 mt-1 grid h-6 w-6 shrink-0 place-items-center rounded-full bg-violet-100">
+                        <Brain className="h-3.5 w-3.5 text-violet-600" />
+                      </div>
+                    )}
+                    <div className={`max-w-[80%] rounded-2xl px-4 py-2.5 text-sm leading-relaxed whitespace-pre-wrap ${
+                      m.role === "user"
+                        ? "rounded-tr-sm bg-violet-600 text-white"
+                        : "rounded-tl-sm bg-muted text-foreground"
+                    }`}>
+                      {m.role === "user"
+                        ? m.content
+                        : m.content.split(/(\*\*[^*]+\*\*)/).map((part, j) =>
+                            part.startsWith("**") && part.endsWith("**")
+                              ? <strong key={j}>{part.slice(2, -2)}</strong>
+                              : part
+                          )
+                      }
+                    </div>
+                  </div>
+                ))}
+                {chatMsgs.length > 0 && chatLoading && (
+                  <div className="flex justify-start">
+                    <div className="mr-2 mt-1 grid h-6 w-6 shrink-0 place-items-center rounded-full bg-violet-100">
+                      <Brain className="h-3.5 w-3.5 text-violet-600" />
+                    </div>
+                    <div className="rounded-2xl rounded-tl-sm bg-muted px-4 py-2.5">
+                      <Loader2 className="h-4 w-4 animate-spin text-violet-500" />
+                    </div>
+                  </div>
+                )}
+                {(chatMsgs.length === 0 || chatMsgs[chatMsgs.length - 1].role === "assistant") && !chatLoading && (
+                  <div className="pl-8">
+                    <p className="mb-2 text-xs font-medium text-muted-foreground">Preguntas frecuentes:</p>
+                    <div className="flex flex-wrap gap-2">
+                      {chipsPreguntas.map((q) => (
+                        <button
+                          key={q}
+                          onClick={() => enviarChatRef.current(q)}
+                          disabled={chatLoading}
+                          className="rounded-full border border-violet-200 bg-violet-50 px-3 py-1.5 text-xs text-violet-700 hover:bg-violet-100 disabled:opacity-40 transition-colors text-left"
+                        >
+                          {q}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                <div ref={chatEndRef} />
+              </div>
+              {/* Input */}
+              <div className="border-t border-border px-4 py-3">
+                <form
+                  onSubmit={(e) => { e.preventDefault(); enviarChat(); }}
+                  className="flex gap-2"
+                >
+                  <input
+                    value={chatInput}
+                    onChange={(e) => setChatInput(e.target.value)}
+                    placeholder="Ej: ¿Qué muestra tuvo mejor reacción entre las niñas?"
+                    className="flex-1 rounded-full border border-border bg-background px-4 py-2 text-sm outline-none focus:border-violet-400"
+                    disabled={chatLoading}
+                  />
+                  <button
+                    type="submit"
+                    disabled={chatLoading || !chatInput.trim()}
+                    className="grid h-9 w-9 place-items-center rounded-full bg-violet-600 text-white hover:bg-violet-700 disabled:opacity-40"
+                  >
+                    <Send className="h-4 w-4" />
+                  </button>
+                </form>
+              </div>
             </div>
 
             {/* Tabla de respuestas */}
@@ -451,7 +627,22 @@ function ResultadosPage() {
                     <div key={r.id}>
                       <button
                         className="flex w-full items-center gap-4 px-6 py-4 text-left hover:bg-accent/30 transition-colors"
-                        onClick={() => setExpandedId(isOpen ? null : r.id)}
+                        onClick={() => {
+                          const opening = isOpen ? null : r.id;
+                          setExpandedId(opening);
+                          // Al abrir, si tiene IA y no tenemos resumen aún, llamar al endpoint
+                          if (opening && r.evaluaciones?.some((ev) => ev.score_ia != null) && !resumenes[r.id]) {
+                            setResumenes((prev) => ({ ...prev, [r.id]: { loading: true } }));
+                            apiFetch<{ resumen: string; muestra_favorita: number | null }>(
+                              `/api/encuestas/${id}/resultados/${r.id}/resumen-participante`,
+                              { method: "POST" }
+                            ).then((res) => {
+                              setResumenes((prev) => ({ ...prev, [r.id]: { loading: false, resumen: res.resumen, muestra_favorita: res.muestra_favorita } }));
+                            }).catch(() => {
+                              setResumenes((prev) => ({ ...prev, [r.id]: { loading: false } }));
+                            });
+                          }
+                        }}
                       >
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2">
@@ -463,7 +654,13 @@ function ResultadosPage() {
                           </p>
                         </div>
                         <div className="flex items-center gap-4 shrink-0">
-                          {prom && <span className="text-right"><span className="font-display text-lg font-black">{prom}</span><span className="text-xs text-muted-foreground"> /5</span></span>}
+                          {prom && (
+                            <span className="text-right">
+                              <span className="font-display text-lg font-black">{prom}</span>
+                              <span className="text-xs text-muted-foreground"> /5</span>
+                              <p className="text-[10px] text-muted-foreground">prom. de calificaciones</p>
+                            </span>
+                          )}
                           {r.escala_hedonica && <span className="text-2xl">{ESCALA_EMOJIS[r.escala_hedonica]}</span>}
                           <span className="text-xs text-muted-foreground">{new Date(r.created_at).toLocaleDateString("es-CO", { dateStyle: "short" })}</span>
                           {isOpen ? <ChevronUp className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
@@ -475,6 +672,51 @@ function ResultadosPage() {
                           {r.comentarios && (
                             <p className="mb-3 rounded-lg bg-card border border-border px-3 py-2 text-sm italic text-muted-foreground">"{r.comentarios}"</p>
                           )}
+
+                          {/* Resumen global IA */}
+                          {evals.some((ev) => ev.score_ia != null) && (() => {
+                            const estado = resumenes[r.id];
+                            return (
+                              <div className="mb-4 rounded-xl border border-violet-200 bg-violet-50 px-4 py-3">
+                                <p className="mb-1.5 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-violet-700">
+                                  <Brain className="h-3.5 w-3.5" /> Análisis global del participante
+                                </p>
+                                {!estado || estado.loading ? (
+                                  <div className="flex items-center gap-2 text-xs text-violet-600">
+                                    <Loader2 className="h-3.5 w-3.5 animate-spin" /> Generando análisis con IA…
+                                  </div>
+                                ) : estado.resumen ? (
+                                  <div className="space-y-1.5">
+                                    {estado.muestra_favorita != null && (
+                                      <p className="text-sm font-semibold text-violet-900">
+                                        Muestra favorita: <span className="rounded-full bg-violet-200 px-2 py-0.5">#{estado.muestra_favorita}</span>
+                                      </p>
+                                    )}
+                                    <p className="text-sm text-violet-900">{estado.resumen}</p>
+                                  </div>
+                                ) : (
+                                  <p className="text-xs text-violet-500 italic">No se pudo generar el análisis.</p>
+                                )}
+                              </div>
+                            );
+                          })()}
+
+                          {evals.some((ev) => ev.score_ia != null) && (
+                            <div className="mb-3 flex flex-wrap gap-2 text-xs">
+                              <span className="flex items-center gap-1.5 rounded-lg border border-border bg-card px-2.5 py-1.5">
+                                <span className="text-base">😊</span>
+                                <span><strong>Calificación (1–5)</strong> — lo que el participante dijo que le gustó</span>
+                              </span>
+                              <span className="flex items-center gap-1.5 rounded-lg border border-border bg-card px-2.5 py-1.5">
+                                <span className="inline-block rounded-full bg-yellow-100 px-1.5 text-xs font-bold text-yellow-800">IA</span>
+                                <span><strong>Score IA (0–100)</strong> — reacción facial captada por la cámara</span>
+                              </span>
+                              <span className="flex items-center gap-1.5 rounded-lg border border-amber-200 bg-amber-50 px-2.5 py-1.5 text-amber-800">
+                                <span>⚡</span>
+                                <span>Si ambos valores difieren mucho, el participante puede estar ocultando su reacción real</span>
+                              </span>
+                            </div>
+                          )}
                           <div className="overflow-x-auto">
                             <table className="w-full text-sm">
                               <thead>
@@ -484,8 +726,14 @@ function ResultadosPage() {
                                   {evals.some((ev) => ev.score_ia != null) && (
                                     <>
                                       <th className="pb-2 text-center font-semibold">Score IA</th>
-                                      <th className="pb-2 text-left font-semibold">Emoción</th>
-                                      <th className="pb-2 text-left font-semibold">Sentimiento</th>
+                                      <th className="pb-2 text-left font-semibold">
+                                        Emoción
+                                        <span className="ml-1 font-normal text-muted-foreground text-[10px] normal-case">cara</span>
+                                      </th>
+                                      <th className="pb-2 text-left font-semibold">
+                                        Sentimiento
+                                        <span className="ml-1 font-normal text-muted-foreground text-[10px] normal-case">voz</span>
+                                      </th>
                                     </>
                                   )}
                                   <th className="pb-2 text-left font-semibold">Observaciones</th>
@@ -512,7 +760,10 @@ function ResultadosPage() {
                                         </td>
                                         <td className="py-1.5 text-xs">
                                           {ev.emocion_dominante
-                                            ? <span className="rounded-full bg-blue-50 px-2 py-0.5 text-blue-700 font-medium">{ev.emocion_dominante}</span>
+                                            ? <button
+                                                onClick={() => ev.emociones && setModalEmociones({ emociones: ev.emociones, dominante: ev.emocion_dominante!, muestra: ev.numero_muestra })}
+                                                className={`rounded-full bg-blue-50 px-2 py-0.5 text-blue-700 font-medium ${ev.emociones ? "cursor-pointer hover:bg-blue-100 underline decoration-dotted" : "cursor-default"}`}
+                                              >{ev.emocion_dominante}</button>
                                             : "—"}
                                         </td>
                                         <td className="py-1.5 text-xs">
@@ -529,15 +780,21 @@ function ResultadosPage() {
                               </tbody>
                             </table>
                           </div>
-                          {evals.some((ev) => ev.resumen_ia || ev.video_url) && (
+                          {evals.some((ev) => ev.resumen_ia || ev.video_url || ev.transcripcion) && (
                             <div className="mt-3 space-y-2">
                               <p className="flex items-center gap-1.5 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
                                 <Brain className="h-3.5 w-3.5" /> Resúmenes & Video Claude Vision
                               </p>
-                              {evals.filter((ev) => ev.resumen_ia || ev.video_url).map((ev) => (
+                              {evals.filter((ev) => ev.resumen_ia || ev.video_url || ev.transcripcion).map((ev) => (
                                 <div key={ev.numero_muestra} className="rounded-lg bg-card border border-border px-3 py-2">
                                   <span className="mr-2 text-xs font-bold text-muted-foreground">#{ev.numero_muestra}</span>
                                   {ev.resumen_ia && <span className="text-xs text-foreground italic">{ev.resumen_ia}</span>}
+                                  {ev.transcripcion && (
+                                    <p className="mt-1.5 flex items-start gap-1.5 text-xs text-gray-600">
+                                      <span className="shrink-0 rounded bg-blue-100 px-1.5 py-0.5 font-semibold text-blue-700">Transcripción</span>
+                                      <span className="italic">"{ev.transcripcion}"</span>
+                                    </p>
+                                  )}
                                   {ev.video_url && (
                                     <video
                                       src={`${API_BASE}${ev.video_url}`}
@@ -561,5 +818,51 @@ function ResultadosPage() {
         )}
       </div>
     </AppLayout>
+
+    {/* Modal emociones */}
+
+    {modalEmociones && (() => {
+      const EMOCION_COLORS: Record<string, string> = {
+        neutral: "#a78bfa", alegria: "#fbbf24", disgusto: "#ef4444",
+        tristeza: "#fb923c", sorpresa: "#22d3ee", interes: "#4ade80",
+        miedo: "#f472b6", enojo: "#f97316",
+      };
+      const entries = Object.entries(modalEmociones.emociones)
+        .sort(([, a], [, b]) => b - a);
+      const total = entries.reduce((s, [, v]) => s + v, 0) || 1;
+      return (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => setModalEmociones(null)}>
+          <div className="w-full max-w-sm rounded-2xl bg-white shadow-xl" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between border-b px-5 py-4">
+              <div>
+                <p className="font-display font-bold text-sm">Emociones detectadas</p>
+                <p className="text-xs text-muted-foreground">Muestra #{modalEmociones.muestra}</p>
+              </div>
+              <button onClick={() => setModalEmociones(null)} className="rounded-lg p-1.5 hover:bg-muted">
+                <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><path d="M18 6 6 18M6 6l12 12"/></svg>
+              </button>
+            </div>
+            <div className="space-y-2.5 px-5 py-4">
+              {entries.map(([emocion, valor]) => {
+                const pct = Math.round((valor / total) * 100);
+                const color = EMOCION_COLORS[emocion.toLowerCase()] ?? "#94a3b8";
+                return (
+                  <div key={emocion}>
+                    <div className="mb-1 flex justify-between text-xs">
+                      <span className={`font-medium capitalize${emocion.toLowerCase() === modalEmociones.dominante.toLowerCase() ? " font-bold" : ""}`}>{emocion}</span>
+                      <span className="text-muted-foreground">{pct}%</span>
+                    </div>
+                    <div className="h-2.5 w-full rounded-full bg-gray-100">
+                      <div className="h-2.5 rounded-full transition-all" style={{ width: `${pct}%`, backgroundColor: color }} />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      );
+    })()}
+    </>
   );
 }

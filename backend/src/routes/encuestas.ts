@@ -53,6 +53,8 @@ const evaluacionSchema = z.object({
   sentimiento_voz:   z.enum(["positivo", "neutro", "negativo"]).optional(),
   resumen_ia:        z.string().max(1000).optional(),
   frames_analizados: z.number().int().min(0).optional(),
+  video_url:         z.string().optional(),
+  transcripcion:     z.string().max(2000).optional(),
 });
 
 const respuestaSchema = z.object({
@@ -170,8 +172,8 @@ router.post("/publicas/:id/respuestas", async (req: Request, res: Response) => {
         await client.query(
           `INSERT INTO evaluaciones_muestra
              (respuesta_id, numero_muestra, calificacion, observaciones,
-              score_ia, emociones, emocion_dominante, sentimiento_voz, resumen_ia, frames_analizados, video_url)
-           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`,
+              score_ia, emociones, emocion_dominante, sentimiento_voz, resumen_ia, frames_analizados, video_url, transcripcion)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)`,
           [resp.id, ev.numero_muestra, ev.calificacion ?? null, ev.observaciones ?? null,
            ev.score_ia ?? null,
            ev.emociones ? JSON.stringify(ev.emociones) : null,
@@ -179,7 +181,8 @@ router.post("/publicas/:id/respuestas", async (req: Request, res: Response) => {
            ev.sentimiento_voz ?? null,
            ev.resumen_ia ?? null,
            ev.frames_analizados ?? null,
-           ev.video_url ?? null]
+           ev.video_url ?? null,
+           ev.transcripcion ?? null]
         );
       }
     }
@@ -327,8 +330,8 @@ router.post("/:id/respuestas", requireAuth, async (req: AuthRequest, res: Respon
         await client.query(
           `INSERT INTO evaluaciones_muestra
              (respuesta_id, numero_muestra, calificacion, observaciones,
-              score_ia, emociones, emocion_dominante, sentimiento_voz, resumen_ia, frames_analizados, video_url)
-           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`,
+              score_ia, emociones, emocion_dominante, sentimiento_voz, resumen_ia, frames_analizados, video_url, transcripcion)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)`,
           [respuestaId, ev.numero_muestra, ev.calificacion ?? null, ev.observaciones ?? null,
            ev.score_ia ?? null,
            ev.emociones ? JSON.stringify(ev.emociones) : null,
@@ -336,7 +339,8 @@ router.post("/:id/respuestas", requireAuth, async (req: AuthRequest, res: Respon
            ev.sentimiento_voz ?? null,
            ev.resumen_ia ?? null,
            ev.frames_analizados ?? null,
-           ev.video_url ?? null],
+           ev.video_url ?? null,
+           ev.transcripcion ?? null],
         );
       }
     }

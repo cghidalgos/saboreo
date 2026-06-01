@@ -1,5 +1,4 @@
 import { Link } from "@tanstack/react-router";
-import { ArrowRight, Play, Mic, Camera, Brain } from "lucide-react";
 
 const faces = ["😖", "😕", "😐", "🙂", "🤩"];
 
@@ -12,14 +11,14 @@ export function Hero() {
       <div className="blob right-[-6%] top-[25%] h-80 w-80 bg-saboreo-red" aria-hidden />
       <div className="blob left-[30%] bottom-[-10%] h-96 w-96 bg-saboreo-purple" aria-hidden />
 
-      <div className="relative mx-auto grid max-w-7xl gap-12 px-6 pb-24 pt-16 md:grid-cols-12 md:pt-24">
+      <div className="relative mx-auto grid max-w-7xl gap-8 px-4 pb-16 pt-10 sm:px-6 sm:pb-24 sm:pt-16 md:grid-cols-12 md:pt-24">
         <div className="md:col-span-7">
-          <span className="inline-flex items-center gap-2 rounded-full border border-white/30 bg-white/15 px-3 py-1.5 text-xs font-semibold uppercase tracking-wider text-white backdrop-blur">
-            <span className="h-2 w-2 rounded-full bg-saboreo-yellow" />
+          <span className="inline-flex items-center gap-2 rounded-full border border-white/30 bg-white/15 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wider text-white backdrop-blur sm:text-xs">
+            <span className="h-2 w-2 animate-pulse rounded-full bg-saboreo-yellow" />
             Investigación científica · IA multimodal
           </span>
 
-          <h1 className="mt-6 text-balance font-display text-5xl font-black leading-[0.95] text-white sm:text-6xl md:text-7xl">
+          <h1 className="mt-5 text-balance font-display text-4xl font-black leading-[0.95] text-white sm:text-5xl md:text-6xl lg:text-7xl">
             Inteligencia Artificial para comprender el{" "}
             <span className="relative inline-block">
               <span className="relative z-10 bg-gradient-warm bg-clip-text text-transparent">sabor</span>
@@ -30,7 +29,7 @@ export function Hero() {
             desde la percepción infantil.
           </h1>
 
-          <p className="mt-6 max-w-xl text-lg text-white/85">
+          <p className="mt-5 max-w-xl text-base text-white/85 sm:text-lg">
             SABOREO analiza voz, emociones y expresiones faciales de niños evaluando
             alimentos funcionales de <strong>soya, avena y cacao</strong>. Una plataforma
             científica con IA para investigadores, docentes y laboratorios.
@@ -38,8 +37,8 @@ export function Hero() {
 
         </div>
 
-        {/* Mock card escala hedónica */}
-        <div className="md:col-span-5">
+        {/* Mock card escala hedónica — solo visible en tablet/desktop */}
+        <div className="hidden md:block md:col-span-5">
           <div className="relative">
             <div className="absolute -inset-4 rounded-[2rem] bg-white/20 blur-2xl" aria-hidden />
             <div className="relative rounded-[2rem] border border-white/40 bg-white/95 p-6 shadow-glow backdrop-blur-xl">

@@ -15,6 +15,7 @@ services:
       - ./database/migration_003.sql:/docker-entrypoint-initdb.d/04_migration_003.sql:ro
       - ./database/migration_004.sql:/docker-entrypoint-initdb.d/05_migration_004.sql:ro
       - ./database/migration_005.sql:/docker-entrypoint-initdb.d/06_migration_005.sql:ro
+      - ./database/migration_006.sql:/docker-entrypoint-initdb.d/07_migration_006.sql:ro
       - ./database/seed.sql:/docker-entrypoint-initdb.d/07_seed.sql:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U saboreo -d saboreo"]
