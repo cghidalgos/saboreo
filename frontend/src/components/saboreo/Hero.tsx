@@ -13,11 +13,6 @@ export function Hero() {
 
       <div className="relative mx-auto grid max-w-7xl gap-8 px-4 pb-16 pt-10 sm:px-6 sm:pb-24 sm:pt-16 md:grid-cols-12 md:pt-24">
         <div className="md:col-span-7">
-          <span className="inline-flex items-center gap-2 rounded-full border border-white/30 bg-white/15 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wider text-white backdrop-blur sm:text-xs">
-            <span className="h-2 w-2 animate-pulse rounded-full bg-saboreo-yellow" />
-            Investigación científica · IA multimodal
-          </span>
-
           <h1 className="mt-5 text-balance font-display text-4xl font-black leading-[0.95] text-white sm:text-5xl md:text-6xl lg:text-7xl">
             Inteligencia Artificial para comprender el{" "}
             <span className="relative inline-block">
@@ -30,9 +25,8 @@ export function Hero() {
           </h1>
 
           <p className="mt-5 max-w-xl text-base text-white/85 sm:text-lg">
-            SABOREO analiza voz, emociones y expresiones faciales de niños evaluando
-            alimentos funcionales de <strong>soya, avena y cacao</strong>. Una plataforma
-            científica con IA para investigadores, docentes y laboratorios.
+            SABOREO escucha su voz y observa su cara mientras prueba el alimento.
+            Así sabemos, con datos reales, si le gustó o no — sin que tenga que explicarlo.
           </p>
 
         </div>
@@ -65,7 +59,7 @@ export function Hero() {
               </div>
 
               <div className="mt-5">
-                <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Escala hedónica facial</p>
+                <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">¿Cuánto te gustó?</p>
                 <div className="mt-3 grid grid-cols-5 gap-2">
                   {faces.map((f, i) => (
                     <div
@@ -79,7 +73,7 @@ export function Hero() {
                   ))}
                 </div>
                 <div className="mt-2 flex justify-between text-[10px] uppercase tracking-wider text-muted-foreground">
-                  <span>Odio</span><span>Me encantó</span>
+                  <span>No me gustó</span><span>Me encantó</span>
                 </div>
               </div>
 

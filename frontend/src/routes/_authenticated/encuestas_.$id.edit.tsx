@@ -552,7 +552,7 @@ function EditarEncuestaPage() {
             ))}
 
             {/* Botón agregar */}
-            <div className="relative">
+            <div>
               <button
                 onClick={() => setShowTipoMenu((v) => !v)}
                 className="flex w-full items-center justify-center gap-2 rounded-xl border-2 border-dashed border-border py-3 text-sm font-semibold text-muted-foreground hover:border-foreground/40 hover:text-foreground transition-colors"
@@ -560,7 +560,7 @@ function EditarEncuestaPage() {
                 <Plus className="h-4 w-4" /> Agregar pregunta
               </button>
               {showTipoMenu && (
-                <div className="absolute left-0 right-0 top-full z-20 mt-1 overflow-hidden rounded-xl border border-border bg-card shadow-lg">
+                <div className="mt-1 overflow-hidden rounded-xl border border-border bg-card shadow-lg">
                   {([
                     ["si_no",          "Sí / No",          "Respuesta binaria"],
                     ["texto",          "Respuesta libre",  "Texto abierto"],
