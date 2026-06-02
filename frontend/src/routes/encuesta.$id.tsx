@@ -1,6 +1,6 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useState, useEffect, useRef } from "react";
-import { CheckCircle2, AlertCircle, ArrowLeft, Loader2, Video, StopCircle } from "lucide-react";
+import { CheckCircle2, AlertCircle, ArrowLeft, ArrowRight, Loader2, Video, StopCircle } from "lucide-react";
 import { apiFetch } from "@/integrations/api/client";
 
 export const Route = createFileRoute("/encuesta/$id")({
@@ -41,6 +41,7 @@ interface Encuesta {
   usar_consentimiento: boolean;
   consentimiento_id: string | null;
   requiere_video: boolean;
+  secciones_ocultas: string[] | null;
   creado_por_nombre: string | null;
 }
 
@@ -78,6 +79,12 @@ const ESCALA = [
   { val: 5, emoji: "😍", label: "¡Me gusta mucho!",          color: "border-sky-400 bg-sky-50 text-sky-700"         },
 ];
 
+// Traduce el score de la IA (0–100, detectado por la cámara) a la escala de caritas (1–5).
+function scoreACarita(score: number): number {
+  if (!Number.isFinite(score)) return 0;
+  return Math.min(5, Math.max(1, Math.ceil(score / 20)));
+}
+
 // ── Componente principal ──────────────────────────────────────────────────────
 
 function TomarEncuestaPage() {
@@ -99,6 +106,8 @@ function TomarEncuestaPage() {
   const [evalMuestras, setEvalMuestras] = useState<EvalMuestraState[]>([]);
   const [extras, setExtras] = useState<Record<string, string>>({});
   const [comentarios, setComentarios] = useState("");
+  // Wizard: 0 = intro (consentimiento + datos), 1..N = cada muestra, N+1 = preguntas finales
+  const [paso, setPaso] = useState(0);
 
   useEffect(() => {
     apiFetch<Encuesta>(`/api/encuestas/publicas/${id}`)
@@ -107,6 +116,8 @@ function TomarEncuestaPage() {
         const c = data.campos_participante?.filter((c) => c.activo) ?? [];
         setCampos(Object.fromEntries(c.map((f) => [f.key, ""])));
         setEvalMuestras(Array.from({ length: data.num_muestras }, () => ({ calificacion: 0, observaciones: "", videoGrabado: false })));
+        // Si el creador ocultó el consentimiento inline, se da por otorgado para no bloquear el envío.
+        if ((data.secciones_ocultas ?? []).includes("consentimiento")) setConsentimiento(true);
         // Si tiene consentimiento formal, cargarlo y mostrar esa etapa primero
         if (data.usar_consentimiento && data.consentimiento_id) {
           try {
@@ -126,12 +137,19 @@ function TomarEncuestaPage() {
 
   async function handleSubmit() {
     if (!encuesta) return;
-    if (!consentimiento) { alert("Por favor confirma el consentimiento informado."); return; }
+    const ocultas = encuesta.secciones_ocultas ?? [];
+    if (!ocultas.includes("consentimiento") && !consentimiento) { alert("Por favor confirma el consentimiento informado."); return; }
 
     const camposActivos = encuesta.campos_participante?.filter((c) => c.activo) ?? [];
     for (const c of camposActivos) {
       if (c.requerido && !campos[c.key]?.trim()) {
         alert(`El campo "${c.label}" es requerido.`); return;
+      }
+      if (c.tipo === "numero" && campos[c.key]?.trim()) {
+        const edad = Number(campos[c.key]);
+        if (edad < 4 || edad > 99) {
+          alert("Edad no permitida. Debe estar entre 4 y 99 años."); return;
+        }
       }
     }
 
@@ -146,9 +164,11 @@ function TomarEncuestaPage() {
       alert(`Faltan ${sinCalificar} muestra${sinCalificar > 1 ? "s" : ""} por calificar.`); return;
     }
 
-    for (const q of (encuesta.preguntas ?? [])) {
-      if (q.requerida && !extras[q.id]) {
-        alert(`La pregunta "${q.texto.slice(0, 50)}" es requerida.`); return;
+    if (!ocultas.includes("preguntas")) {
+      for (const q of (encuesta.preguntas ?? [])) {
+        if (q.requerida && !extras[q.id]) {
+          alert(`La pregunta "${q.texto.slice(0, 50)}" es requerida.`); return;
+        }
       }
     }
 
@@ -188,6 +208,44 @@ function TomarEncuestaPage() {
     }
   }
 
+  // ── Navegación del wizard ───────────────────────────────────────────────────
+  function validarIntro(): boolean {
+    if (!encuesta) return false;
+    const ocultas = encuesta.secciones_ocultas ?? [];
+    if (!ocultas.includes("consentimiento") && !consentimiento) { alert("Por favor confirma el consentimiento informado."); return false; }
+    const requeridos = encuesta.campos_participante?.filter((c) => c.activo && c.requerido) ?? [];
+    for (const c of requeridos) {
+      if (!campos[c.key]?.trim()) { alert(`El campo "${c.label}" es requerido.`); return false; }
+    }
+    return true;
+  }
+
+  function validarMuestra(idx: number): boolean {
+    if (!encuesta) return false;
+    const m = evalMuestras[idx];
+    if (encuesta.requiere_video && !m?.videoGrabado) {
+      alert(`Falta grabar el video de la muestra ${idx + 1}.`); return false;
+    }
+    if (!m?.calificacion) {
+      alert(`Falta calificar la muestra ${idx + 1}.`); return false;
+    }
+    return true;
+  }
+
+  function irSiguiente() {
+    if (!encuesta) return;
+    const N = evalMuestras.length;
+    if (paso === 0 && !validarIntro()) return;
+    if (paso >= 1 && paso <= N && !validarMuestra(paso - 1)) return;
+    setPaso((p) => Math.min(N + 1, p + 1));
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
+  function irAnterior() {
+    setPaso((p) => Math.max(0, p - 1));
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
   if (loading) return (
     <div className="flex min-h-screen items-center justify-center bg-[#f8f7f4]">
       <Loader2 className="h-10 w-10 animate-spin text-[#4F86C6]" />
@@ -211,7 +269,12 @@ function TomarEncuestaPage() {
     return <PaginaConsentimiento
       encuesta={encuesta}
       data={consentimientoData}
-      onAceptar={() => setEtapa("encuesta")}
+      pasoGlobal={1}
+      totalGlobal={evalMuestras.length + 3 /* consentimiento + intro + N muestras + final */}
+      onAceptar={(nombre) => {
+        setCampos((p) => ({ ...p, nombre }));
+        setEtapa("encuesta");
+      }}
       onVolver={() => navigate({ to: "/" })}
     />;
   }
@@ -235,26 +298,61 @@ function TomarEncuestaPage() {
   );
 
   const camposActivos = encuesta.campos_participante?.filter((c) => c.activo) ?? [];
+  const seccOcultas = encuesta.secciones_ocultas ?? [];
+  const mostrarConsent = !seccOcultas.includes("consentimiento");
+  const mostrarInstrucciones = !seccOcultas.includes("instrucciones");
+  const mostrarPreguntas = !seccOcultas.includes("preguntas");
+  // Numeración dinámica de las secciones del paso 0 (el consentimiento puede estar oculto).
+  let numSeccion = 0;
+  const numConsent = mostrarConsent ? ++numSeccion : 0;
+  const numDatos = camposActivos.length > 0 ? ++numSeccion : 0;
   const textoConsent = encuesta.texto_consentimiento || "El padre/madre o tutor autoriza la participación del menor en esta evaluación sensorial, incluyendo la captura de datos con fines científicos.";
   const textoAlergia = encuesta.texto_alergia || "¿El participante tiene algún tipo de alergia a los ingredientes del producto?";
   const atributos = encuesta.atributos?.length ? encuesta.atributos : ["SABOR"];
+  const N = evalMuestras.length;
+  const totalPasos = N + 2; // intro + N muestras + preguntas finales
+  // Progreso unificado: si hubo consentimiento formal, cuenta como un paso previo del mismo flujo.
+  const offsetConsent = consentimientoData ? 1 : 0;
+  const totalGlobal = totalPasos + offsetConsent;
+  const pasoGlobal = paso + 1 + offsetConsent; // 1-based, continuo con el consentimiento
+  const enMuestra = paso >= 1 && paso <= N;
+  const muestraIdx = paso - 1;
+  const muestraActual = enMuestra ? evalMuestras[muestraIdx] : undefined;
+  const muestraCalificada = !!muestraActual?.calificacion;
+  // Aún grabando/procesando el video de esta muestra (la calificación todavía no está disponible)
+  const esperandoVideo = enMuestra && encuesta.requiere_video && !muestraActual?.videoGrabado;
 
   return (
     <div className="min-h-screen bg-[#f8f7f4]">
-      {/* Header */}
+      {/* Header con progreso */}
       <header className="sticky top-0 z-10 border-b border-gray-200 bg-white/90 backdrop-blur-sm">
         <div className="mx-auto flex max-w-2xl items-center gap-3 px-4 py-4">
-          <button onClick={() => navigate({ to: "/" })} className="grid h-8 w-8 place-items-center rounded-full hover:bg-gray-100">
+          <button
+            onClick={() => (paso === 0 ? navigate({ to: "/" }) : irAnterior())}
+            className="grid h-8 w-8 place-items-center rounded-full hover:bg-gray-100"
+          >
             <ArrowLeft className="h-4 w-4 text-gray-500" />
           </button>
-          <div className="min-w-0">
+          <div className="min-w-0 flex-1">
             <h1 className="truncate text-sm font-bold text-gray-900">{encuesta.titulo}</h1>
-            <p className="truncate text-xs text-gray-400">{encuesta.producto}</p>
+            <p className="truncate text-xs text-gray-400">
+              {paso === 0 ? "Antes de comenzar" : enMuestra ? `Muestra ${paso} de ${N}` : "Últimas preguntas"}
+            </p>
           </div>
+          <span className="shrink-0 text-xs font-bold text-[#4F86C6]">Paso {pasoGlobal}/{totalGlobal}</span>
+        </div>
+        {/* Barra de progreso */}
+        <div className="h-1.5 bg-gray-100">
+          <div
+            className="h-1.5 bg-[#4F86C6] transition-all duration-300"
+            style={{ width: `${(pasoGlobal / totalGlobal) * 100}%` }}
+          />
         </div>
       </header>
 
       <main className="mx-auto max-w-2xl px-4 py-8 space-y-6">
+        {/* ───────────────────────── PASO 0: Intro ───────────────────────── */}
+        {paso === 0 && (<>
         {/* Banner */}
         <div className="rounded-2xl bg-gradient-to-br from-[#4F86C6] to-[#6B9FD4] p-6 text-white shadow-lg">
           <p className="text-xs font-semibold uppercase tracking-widest opacity-70 mb-1">Evaluación sensorial</p>
@@ -270,7 +368,7 @@ function TomarEncuestaPage() {
         </div>
 
         {/* Instrucciones */}
-        {encuesta.instrucciones && (
+        {mostrarInstrucciones && encuesta.instrucciones && (
           <div className="rounded-2xl border border-blue-200 bg-blue-50 p-5">
             <h3 className="mb-3 flex items-center gap-2 font-bold text-blue-800">
               <AlertCircle className="h-4 w-4" /> Instrucciones
@@ -287,7 +385,8 @@ function TomarEncuestaPage() {
         )}
 
         {/* 1. Consentimiento */}
-        <Section numero={1} titulo="Consentimiento informado">
+        {mostrarConsent && (
+        <Section numero={numConsent} titulo="Consentimiento informado">
           <p className="mb-4 text-sm leading-relaxed text-gray-500 text-justify">{textoConsent}</p>
           <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-gray-200 bg-white p-4 transition hover:border-[#4F86C6]">
             <input type="checkbox" checked={consentimiento}
@@ -316,10 +415,11 @@ function TomarEncuestaPage() {
             )}
           </div>
         </Section>
+        )}
 
         {/* 2. Datos del participante */}
         {camposActivos.length > 0 && (
-          <Section numero={2} titulo="Datos del participante">
+          <Section numero={numDatos} titulo="Datos del participante">
             <div className="grid gap-3 sm:grid-cols-2">
               {camposActivos.map((c) => (
                 <div key={c.key} className="space-y-1">
@@ -335,48 +435,63 @@ function TomarEncuestaPage() {
                       <option value="">Seleccionar…</option>
                       {(c.opciones ?? []).map((op) => <option key={op} value={op}>{op}</option>)}
                     </select>
-                  ) : (
-                    <input
-                      type={c.tipo === "numero" ? "number" : "text"}
-                      min={c.tipo === "numero" ? 3 : undefined}
-                      max={c.tipo === "numero" ? 18 : undefined}
-                      placeholder={c.tipo === "numero" ? "Años (3–18)" : c.label}
-                      value={campos[c.key] ?? ""}
-                      onChange={(e) => setCampos((p) => ({ ...p, [c.key]: e.target.value }))}
-                      className="w-full rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm outline-none focus:border-[#4F86C6] focus:ring-2 focus:ring-[#4F86C6]/20"
-                    />
-                  )}
+                  ) : (() => {
+                    const valor = campos[c.key] ?? "";
+                    const edadInvalida =
+                      c.tipo === "numero" && valor !== "" && (Number(valor) < 4 || Number(valor) > 99);
+                    return (
+                      <>
+                        <input
+                          type={c.tipo === "numero" ? "number" : "text"}
+                          min={c.tipo === "numero" ? 4 : undefined}
+                          max={c.tipo === "numero" ? 99 : undefined}
+                          placeholder={c.tipo === "numero" ? "Años (4–99)" : c.label}
+                          value={valor}
+                          onChange={(e) => setCampos((p) => ({ ...p, [c.key]: e.target.value }))}
+                          className={`w-full rounded-xl border bg-white px-4 py-2.5 text-sm outline-none focus:ring-2 ${
+                            edadInvalida
+                              ? "border-red-400 focus:border-red-400 focus:ring-red-400/20"
+                              : "border-gray-200 focus:border-[#4F86C6] focus:ring-[#4F86C6]/20"
+                          }`}
+                        />
+                        {edadInvalida && (
+                          <p className="text-xs font-medium text-red-500">
+                            Edad no permitida. Debe estar entre 4 y 99 años.
+                          </p>
+                        )}
+                      </>
+                    );
+                  })()}
                 </div>
               ))}
             </div>
           </Section>
         )}
+        </>)}
 
-        {/* 3. Evaluación de muestras */}
-        <Section numero={3} titulo={`Evaluación de muestras — ${atributos.join(", ")}`}>
-          <p className="mb-4 text-sm text-gray-500">Toca el emoji que mejor describe cómo te siente cada muestra.</p>
-          {/* Leyenda */}
-          <div className="mb-4 grid grid-cols-5 gap-1 rounded-xl bg-gray-50 p-3 text-center">
-            {ESCALA.map((e) => (
-              <div key={e.val} className="flex flex-col items-center gap-0.5">
-                <span className="text-2xl leading-none">{e.emoji}</span>
-                <span className="text-[10px] font-bold text-gray-400">{e.val}</span>
-              </div>
-            ))}
-          </div>
-          <div className="space-y-4">
-            {evalMuestras.map((m, idx) => (
-              <div key={idx} className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
-                <div className="mb-3 flex items-center gap-2">
-                  <span className="flex h-7 w-7 items-center justify-center rounded-full bg-[#4F86C6] text-xs font-black text-white">{idx + 1}</span>
-                  <span className="font-semibold text-gray-800">Muestra {idx + 1}</span>
-                  {encuesta.requiere_video && m.videoGrabado && (
-                    <span className="ml-auto flex items-center gap-1 text-xs font-semibold text-green-600">
-                      <CheckCircle2 className="h-3.5 w-3.5" /> Video analizado
-                    </span>
-                  )}
+        {/* ──────────────────────── PASOS: una muestra a la vez ──────────────────────── */}
+        {enMuestra && (() => {
+          const idx = muestraIdx;
+          const m = evalMuestras[idx];
+          return (
+            <div className="space-y-4">
+              {/* Cabecera de muestra */}
+              <div className="flex items-center gap-3">
+                <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-[#4F86C6] text-lg font-black text-white shadow-sm">{idx + 1}</span>
+                <div className="min-w-0">
+                  <h2 className="text-lg font-black text-gray-900">Muestra {idx + 1}</h2>
+                  <p className="text-xs text-gray-400">de {N} · Evalúa el atributo {atributos.join(", ")}</p>
                 </div>
-                {encuesta.requiere_video && !m.videoGrabado && (
+                {encuesta.requiere_video && m.videoGrabado && (
+                  <span className="ml-auto flex items-center gap-1 text-xs font-semibold text-green-600">
+                    <CheckCircle2 className="h-3.5 w-3.5" /> Video analizado
+                  </span>
+                )}
+              </div>
+
+              {/* Grabación de video (si aplica) */}
+              {encuesta.requiere_video && !m.videoGrabado && (
+                <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
                   <VideoRecorderMuestra
                     encuestaId={id}
                     muestraNum={idx + 1}
@@ -385,6 +500,9 @@ function TomarEncuestaPage() {
                         p.map((mm, i) =>
                           i === idx
                             ? { ...mm, videoGrabado: true, score_ia: r.score_ia,
+                                // Pre-marca la carita según el sentimiento detectado por la cámara
+                                // (solo si el participante aún no eligió una manualmente).
+                                calificacion: mm.calificacion || scoreACarita(r.score_ia),
                                 emociones: r.emociones, emocion_dominante: r.emocion_dominante,
                                 sentimiento_voz: r.sentimiento_voz, resumen_ia: r.resumen,
                                 frames_analizados: r.frames_analizados,
@@ -394,40 +512,71 @@ function TomarEncuestaPage() {
                       )
                     }
                   />
-                )}
-                {(!encuesta.requiere_video || m.videoGrabado) && (
-                  <>
-                    {atributos.map((a) => (
+                </div>
+              )}
+
+              {/* Calificación con emojis */}
+              {(!encuesta.requiere_video || m.videoGrabado) && (
+                <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
+                  <p className="mb-1 text-base font-semibold text-gray-700">Toca la carita que mejor describe cómo te sienta esta muestra 👇</p>
+                  {encuesta.requiere_video && m.videoGrabado && (
+                    <p className="mb-4 text-xs text-gray-400">Sugerimos una carita según tu reacción en la cámara 🎥 · puedes cambiarla.</p>
+                  )}
+                  {atributos.map((a) => {
+                    const sel = ESCALA.find((e) => e.val === m.calificacion);
+                    return (
                       <div key={a} className="mb-3">
-                        <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-gray-400">{a}</p>
-                        <div className="grid grid-cols-5 gap-2">
-                          {ESCALA.map((e) => (
-                            <button key={e.val} type="button"
-                              onClick={() => setEval(idx, "calificacion", e.val)}
-                              className={`flex flex-col items-center rounded-xl border-2 py-3 transition-all ${m.calificacion === e.val ? `${e.color} border-current scale-105 shadow-md font-bold` : "border-gray-100 bg-gray-50 hover:border-gray-300"}`}
-                            >
-                              <span className="text-2xl leading-none">{e.emoji}</span>
-                              <span className="mt-1 text-[11px] font-bold">{e.val}</span>
-                            </button>
-                          ))}
+                        {atributos.length > 1 && (
+                          <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-gray-400">{a}</p>
+                        )}
+                        <div className="grid grid-cols-5 gap-1.5 sm:gap-2.5">
+                          {ESCALA.map((e) => {
+                            const activo = m.calificacion === e.val;
+                            return (
+                              <button key={e.val} type="button"
+                                aria-label={e.label}
+                                aria-pressed={activo}
+                                onClick={() => setEval(idx, "calificacion", e.val)}
+                                className={`flex aspect-square items-center justify-center rounded-2xl border-2 transition-all duration-150 active:scale-90 ${
+                                  activo
+                                    ? `${e.color} border-current scale-110 shadow-lg`
+                                    : "border-gray-100 bg-gray-50 opacity-80 hover:scale-105 hover:border-gray-300 hover:opacity-100"
+                                }`}
+                              >
+                                <span className="text-[2rem] leading-none sm:text-4xl">{e.emoji}</span>
+                              </button>
+                            );
+                          })}
+                        </div>
+                        {/* Refuerzo de la selección: carita grande + etiqueta en color */}
+                        <div className="mt-3 flex justify-center">
+                          {sel ? (
+                            <span className={`inline-flex items-center gap-2 rounded-full border-2 border-current px-4 py-1.5 text-sm font-bold ${sel.color}`}>
+                              <span className="text-xl leading-none">{sel.emoji}</span>
+                              {sel.label}
+                            </span>
+                          ) : (
+                            <span className="text-sm text-gray-400">Aún no has elegido una carita</span>
+                          )}
                         </div>
                       </div>
-                    ))}
-                    <input type="text" placeholder="Observaciones (opcional)…"
-                      value={m.observaciones}
-                      onChange={(e) => setEval(idx, "observaciones", e.target.value)}
-                      className="mt-2 w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-2 text-sm outline-none focus:border-[#4F86C6] focus:ring-2 focus:ring-[#4F86C6]/20"
-                    />
-                  </>
-                )}
-              </div>
-            ))}
-          </div>
-        </Section>
+                    );
+                  })}
+                  <input type="text" placeholder="Observaciones (opcional)…"
+                    value={m.observaciones}
+                    onChange={(e) => setEval(idx, "observaciones", e.target.value)}
+                    className="mt-2 w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-2 text-sm outline-none focus:border-[#4F86C6] focus:ring-2 focus:ring-[#4F86C6]/20"
+                  />
+                </div>
+              )}
+            </div>
+          );
+        })()}
 
-        {/* 4. Preguntas adicionales */}
-        {(encuesta.preguntas ?? []).length > 0 && (
-          <Section numero={4} titulo="Preguntas adicionales">
+        {/* ──────────────────────── PASO FINAL: preguntas + comentarios ──────────────────────── */}
+        {paso === N + 1 && (<>
+        {mostrarPreguntas && (encuesta.preguntas ?? []).length > 0 && (
+          <Section numero={1} titulo="Preguntas adicionales">
             <div className="space-y-4">
               {encuesta.preguntas.map((q, idx) => (
                 <div key={q.id} className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
@@ -497,19 +646,56 @@ function TomarEncuestaPage() {
             className="w-full resize-none rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm outline-none focus:border-[#4F86C6] focus:ring-2 focus:ring-[#4F86C6]/20"
           />
         </div>
+        </>)}
 
-        {/* Botón enviar */}
-        <button
-          onClick={handleSubmit}
-          disabled={saving}
-          className="flex w-full items-center justify-center gap-3 rounded-2xl bg-gradient-to-r from-[#4F86C6] to-[#6B9FD4] py-4 text-base font-bold text-white shadow-lg hover:opacity-90 disabled:opacity-60 transition-all"
-        >
-          {saving ? (
-            <><Loader2 className="h-5 w-5 animate-spin" /> Enviando…</>
-          ) : (
-            <><CheckCircle2 className="h-5 w-5" /> Enviar evaluación</>
+        {/* ──────────────────────── Navegación del wizard ──────────────────────── */}
+        <div className="flex items-center gap-3 pt-2">
+          {paso > 0 && (
+            <button
+              type="button"
+              onClick={irAnterior}
+              disabled={saving}
+              className="flex shrink-0 items-center justify-center gap-2 rounded-2xl border border-gray-300 bg-white px-5 py-4 text-base font-bold text-gray-600 hover:bg-gray-50 disabled:opacity-60 transition-all"
+            >
+              <ArrowLeft className="h-5 w-5" /> Anterior
+            </button>
           )}
-        </button>
+          {paso < N + 1 ? (
+            // En una muestra, el botón de avanzar solo aparece cuando ya se eligió la carita.
+            // Mientras el video se graba/procesa o falta calificar, se muestra una pista (o nada).
+            !enMuestra || muestraCalificada ? (
+              <button
+                type="button"
+                onClick={irSiguiente}
+                className="flex flex-1 items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-[#4F86C6] to-[#6B9FD4] py-4 text-base font-bold text-white shadow-lg hover:opacity-90 transition-all"
+              >
+                {paso === 0 ? "Comenzar evaluación" : paso === N ? "Continuar" : "Siguiente muestra"}
+                <ArrowRight className="h-5 w-5" />
+              </button>
+            ) : esperandoVideo ? (
+              <p className="flex-1 text-center text-sm font-medium text-gray-400">
+                Completa la grabación de esta muestra para continuar
+              </p>
+            ) : (
+              <p className="flex-1 text-center text-sm font-medium text-gray-400">
+                Toca una carita para continuar 👆
+              </p>
+            )
+          ) : (
+            <button
+              type="button"
+              onClick={handleSubmit}
+              disabled={saving}
+              className="flex flex-1 items-center justify-center gap-3 rounded-2xl bg-gradient-to-r from-[#4F86C6] to-[#6B9FD4] py-4 text-base font-bold text-white shadow-lg hover:opacity-90 disabled:opacity-60 transition-all"
+            >
+              {saving ? (
+                <><Loader2 className="h-5 w-5 animate-spin" /> Enviando…</>
+              ) : (
+                <><CheckCircle2 className="h-5 w-5" /> Enviar evaluación</>
+              )}
+            </button>
+          )}
+        </div>
 
         <p className="pb-8 text-center text-xs text-gray-400">
           Tus datos son utilizados únicamente con fines científicos y académicos.
@@ -555,6 +741,13 @@ function VideoRecorderMuestra({
   const [resultado, setResultado] = useState<{ score_ia: number; emocion_dominante: string; resumen: string } | null>(null);
 
   useEffect(() => {
+    if (!navigator.mediaDevices?.getUserMedia) {
+      setErrMsg(
+        "La cámara no está disponible. Por seguridad, los navegadores solo permiten el acceso a la cámara/micrófono en sitios HTTPS o en localhost. Abre la app mediante una URL https:// o desde http://localhost para grabar.",
+      );
+      setFase("error");
+      return;
+    }
     navigator.mediaDevices
       .getUserMedia({ video: { facingMode: "user", width: 320, height: 240 }, audio: true })
       .then((stream) => {
@@ -777,11 +970,13 @@ function VideoRecorderMuestra({
 // ── Página de consentimiento formal ──────────────────────────────────────────
 
 function PaginaConsentimiento({
-  encuesta, data, onAceptar, onVolver,
+  encuesta, data, pasoGlobal, totalGlobal, onAceptar, onVolver,
 }: {
   encuesta: Encuesta;
   data: ConsentimientoData;
-  onAceptar: () => void;
+  pasoGlobal: number;
+  totalGlobal: number;
+  onAceptar: (nombreParticipante: string) => void;
   onVolver: () => void;
 }) {
   const [nombreParticipante, setNombreParticipante] = useState("");
@@ -796,7 +991,7 @@ function PaginaConsentimiento({
     if (data.tiene_pregunta_alergia && tieneAlergia === null) {
       alert("Por favor responde la pregunta de alergia."); return;
     }
-    onAceptar();
+    onAceptar(nombreParticipante.trim());
   }
 
   return (
@@ -807,14 +1002,18 @@ function PaginaConsentimiento({
           <button onClick={onVolver} className="grid h-8 w-8 place-items-center rounded-full hover:bg-gray-100">
             <ArrowLeft className="h-4 w-4 text-gray-500" />
           </button>
-          <div className="min-w-0">
+          <div className="min-w-0 flex-1">
             <h1 className="truncate text-sm font-bold text-gray-900">{encuesta.titulo}</h1>
-            <p className="text-xs text-gray-400">Consentimiento informado — Paso 1 de 2</p>
+            <p className="truncate text-xs text-gray-400">Consentimiento informado</p>
           </div>
+          <span className="shrink-0 text-xs font-bold text-[#4F86C6]">Paso {pasoGlobal}/{totalGlobal}</span>
         </div>
         {/* Barra de progreso */}
-        <div className="h-1 bg-gray-100">
-          <div className="h-1 w-1/2 bg-[#4F86C6] transition-all" />
+        <div className="h-1.5 bg-gray-100">
+          <div
+            className="h-1.5 bg-[#4F86C6] transition-all duration-300"
+            style={{ width: `${(pasoGlobal / totalGlobal) * 100}%` }}
+          />
         </div>
       </header>
 

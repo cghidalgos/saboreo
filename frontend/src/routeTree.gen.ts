@@ -14,6 +14,7 @@ import { Route as AuthenticatedRouteImport } from './routes/_authenticated'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as EncuestaIdRouteImport } from './routes/encuesta.$id'
 import { Route as AuthenticatedSesionRouteImport } from './routes/_authenticated/sesion'
+import { Route as AuthenticatedResultadosRouteImport } from './routes/_authenticated/resultados'
 import { Route as AuthenticatedEncuestasRouteImport } from './routes/_authenticated/encuestas'
 import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
 import { Route as AuthenticatedConsentimientosRouteImport } from './routes/_authenticated/consentimientos'
@@ -43,6 +44,11 @@ const EncuestaIdRoute = EncuestaIdRouteImport.update({
 const AuthenticatedSesionRoute = AuthenticatedSesionRouteImport.update({
   id: '/sesion',
   path: '/sesion',
+  getParentRoute: () => AuthenticatedRoute,
+} as any)
+const AuthenticatedResultadosRoute = AuthenticatedResultadosRouteImport.update({
+  id: '/resultados',
+  path: '/resultados',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
 const AuthenticatedEncuestasRoute = AuthenticatedEncuestasRouteImport.update({
@@ -86,6 +92,7 @@ export interface FileRoutesByFullPath {
   '/consentimientos': typeof AuthenticatedConsentimientosRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/encuestas': typeof AuthenticatedEncuestasRoute
+  '/resultados': typeof AuthenticatedResultadosRoute
   '/sesion': typeof AuthenticatedSesionRoute
   '/encuesta/$id': typeof EncuestaIdRoute
   '/consentimientos/$id/edit': typeof AuthenticatedConsentimientosIdEditRoute
@@ -98,6 +105,7 @@ export interface FileRoutesByTo {
   '/consentimientos': typeof AuthenticatedConsentimientosRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/encuestas': typeof AuthenticatedEncuestasRoute
+  '/resultados': typeof AuthenticatedResultadosRoute
   '/sesion': typeof AuthenticatedSesionRoute
   '/encuesta/$id': typeof EncuestaIdRoute
   '/consentimientos/$id/edit': typeof AuthenticatedConsentimientosIdEditRoute
@@ -112,6 +120,7 @@ export interface FileRoutesById {
   '/_authenticated/consentimientos': typeof AuthenticatedConsentimientosRoute
   '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
   '/_authenticated/encuestas': typeof AuthenticatedEncuestasRoute
+  '/_authenticated/resultados': typeof AuthenticatedResultadosRoute
   '/_authenticated/sesion': typeof AuthenticatedSesionRoute
   '/encuesta/$id': typeof EncuestaIdRoute
   '/_authenticated/consentimientos_/$id/edit': typeof AuthenticatedConsentimientosIdEditRoute
@@ -126,6 +135,7 @@ export interface FileRouteTypes {
     | '/consentimientos'
     | '/dashboard'
     | '/encuestas'
+    | '/resultados'
     | '/sesion'
     | '/encuesta/$id'
     | '/consentimientos/$id/edit'
@@ -138,6 +148,7 @@ export interface FileRouteTypes {
     | '/consentimientos'
     | '/dashboard'
     | '/encuestas'
+    | '/resultados'
     | '/sesion'
     | '/encuesta/$id'
     | '/consentimientos/$id/edit'
@@ -151,6 +162,7 @@ export interface FileRouteTypes {
     | '/_authenticated/consentimientos'
     | '/_authenticated/dashboard'
     | '/_authenticated/encuestas'
+    | '/_authenticated/resultados'
     | '/_authenticated/sesion'
     | '/encuesta/$id'
     | '/_authenticated/consentimientos_/$id/edit'
@@ -202,6 +214,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedSesionRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
+    '/_authenticated/resultados': {
+      id: '/_authenticated/resultados'
+      path: '/resultados'
+      fullPath: '/resultados'
+      preLoaderRoute: typeof AuthenticatedResultadosRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
     '/_authenticated/encuestas': {
       id: '/_authenticated/encuestas'
       path: '/encuestas'
@@ -251,6 +270,7 @@ interface AuthenticatedRouteChildren {
   AuthenticatedConsentimientosRoute: typeof AuthenticatedConsentimientosRoute
   AuthenticatedDashboardRoute: typeof AuthenticatedDashboardRoute
   AuthenticatedEncuestasRoute: typeof AuthenticatedEncuestasRoute
+  AuthenticatedResultadosRoute: typeof AuthenticatedResultadosRoute
   AuthenticatedSesionRoute: typeof AuthenticatedSesionRoute
   AuthenticatedConsentimientosIdEditRoute: typeof AuthenticatedConsentimientosIdEditRoute
   AuthenticatedEncuestasIdEditRoute: typeof AuthenticatedEncuestasIdEditRoute
@@ -261,6 +281,7 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedConsentimientosRoute: AuthenticatedConsentimientosRoute,
   AuthenticatedDashboardRoute: AuthenticatedDashboardRoute,
   AuthenticatedEncuestasRoute: AuthenticatedEncuestasRoute,
+  AuthenticatedResultadosRoute: AuthenticatedResultadosRoute,
   AuthenticatedSesionRoute: AuthenticatedSesionRoute,
   AuthenticatedConsentimientosIdEditRoute:
     AuthenticatedConsentimientosIdEditRoute,

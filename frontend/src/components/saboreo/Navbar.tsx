@@ -1,5 +1,5 @@
 import { Link } from "@tanstack/react-router";
-import { Sparkles, LayoutDashboard, LogOut, User as UserIcon } from "lucide-react";
+import { LayoutDashboard, LogOut, User as UserIcon } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 
 export function Navbar() {
@@ -10,11 +10,9 @@ export function Navbar() {
     <header className="sticky top-0 z-40 w-full border-b border-border/40 bg-background/70 backdrop-blur-xl">
       <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-6">
         <Link to="/" className="flex items-center gap-2">
-          <div className="grid h-9 w-9 place-items-center rounded-xl bg-gradient-warm shadow-soft">
-            <Sparkles className="h-5 w-5 text-white" strokeWidth={2.5} />
-          </div>
+          <img src="/logo.png" alt="SABOREO" className="h-10 w-10 object-contain" />
           <div className="flex flex-col leading-none">
-            <span className="font-display text-xl font-black tracking-tight">SABOREO</span>
+            <span className="font-serif text-xl font-black tracking-tight">SABOREO</span>
           </div>
         </Link>
 

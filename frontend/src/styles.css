@@ -62,8 +62,13 @@
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-ring: var(--sidebar-ring);
 
-  --font-display: "Fraunces", "Georgia", serif;
+  /* Texto y títulos unificados en la fuente sans (la de las etiquetas de las tarjetas). */
+  --font-display: "Plus Jakarta Sans", "Inter", system-ui, sans-serif;
   --font-sans: "Plus Jakarta Sans", "Inter", system-ui, sans-serif;
+  /* Fraunces reservado solo para los NÚMEROS (estilo de los números de las tarjetas de métricas). */
+  --font-num: "Fraunces", "Georgia", serif;
+  /* Fraunces para la marca/landing pública (logo SABOREO y página de inicio). */
+  --font-serif: "Fraunces", "Georgia", serif;
 }
 
 :root {

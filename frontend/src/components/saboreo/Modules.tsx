@@ -16,7 +16,7 @@ export function Modules() {
       <div className="mx-auto max-w-7xl px-6">
         <div className="max-w-2xl">
           <span className="text-xs font-bold uppercase tracking-[0.2em] text-saboreo-blue">Plataforma completa</span>
-          <h2 className="mt-3 font-display text-4xl font-black sm:text-5xl">
+          <h2 className="mt-3 font-serif text-4xl font-black sm:text-5xl">
             Del consentimiento al insight, en una sola plataforma.
           </h2>
           <p className="mt-4 text-lg text-muted-foreground">
@@ -35,11 +35,11 @@ export function Modules() {
                 <div className={`grid h-12 w-12 place-items-center rounded-2xl ${m.grad} shadow-soft`}>
                   <m.icon className="h-6 w-6 text-white" strokeWidth={2.2} />
                 </div>
-                <span className="font-display text-4xl font-black text-muted-foreground/10 leading-none select-none">
+                <span className="font-serif text-4xl font-black text-muted-foreground/10 leading-none select-none">
                   {String(i + 1).padStart(2, "0")}
                 </span>
               </div>
-              <h3 className="mt-5 font-display text-xl font-bold">{m.title}</h3>
+              <h3 className="mt-5 font-serif text-xl font-bold">{m.title}</h3>
               <p className="mt-2 text-sm text-muted-foreground">{m.desc}</p>
               <div className="absolute -right-12 -top-12 h-32 w-32 rounded-full bg-saboreo-turquoise/10 transition-transform group-hover:scale-150" aria-hidden />
             </div>
@@ -48,7 +48,7 @@ export function Modules() {
 
         {/* CTA final */}
         <div className="mt-16 flex flex-col items-center gap-4 rounded-3xl bg-gradient-hero p-10 text-center text-white">
-          <p className="font-display text-3xl font-black sm:text-4xl">¿Listo para comenzar?</p>
+          <p className="font-serif text-3xl font-black sm:text-4xl">¿Listo para comenzar?</p>
           <p className="max-w-md text-white/80">Crea tu cuenta en segundos y lanza tu primer panel sensorial hoy mismo.</p>
           <Link
             to="/auth"

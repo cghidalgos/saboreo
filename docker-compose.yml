@@ -16,7 +16,9 @@ services:
       - ./database/migration_004.sql:/docker-entrypoint-initdb.d/05_migration_004.sql:ro
       - ./database/migration_005.sql:/docker-entrypoint-initdb.d/06_migration_005.sql:ro
       - ./database/migration_006.sql:/docker-entrypoint-initdb.d/07_migration_006.sql:ro
-      - ./database/seed.sql:/docker-entrypoint-initdb.d/07_seed.sql:ro
+      - ./database/migration_007.sql:/docker-entrypoint-initdb.d/08_migration_007.sql:ro
+      - ./database/migration_008.sql:/docker-entrypoint-initdb.d/09_migration_008.sql:ro
+      - ./database/seed.sql:/docker-entrypoint-initdb.d/10_seed.sql:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U saboreo -d saboreo"]
       interval: 5s
@@ -36,7 +38,7 @@ services:
     environment:
       NODE_ENV: development
       PORT: 9021
-      FRONTEND_URL: http://localhost:9020
+      FRONTEND_URL: http://localhost:9031
       DATABASE_URL: postgresql://saboreo:saboreo_secret@postgres:5432/saboreo
       JWT_SECRET: dev-secret-change-in-production
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
@@ -50,13 +52,16 @@ services:
       context: ./frontend
       target: dev
     ports:
-      - "9020:9020"
+      - "9031:9020"
     volumes:
       - ./frontend:/app
       - frontend_modules:/app/node_modules
     environment:
       NODE_ENV: development
-      VITE_API_URL: http://localhost:9021
+      VITE_API_URL: ""
+      # URL interna del backend para los fetch del lado servidor (SSR loaders).
+      # En el navegador se usa VITE_API_URL (relativo); en el servidor se llama directo.
+      BACKEND_INTERNAL_URL: "http://backend:9021"
     depends_on:
       - backend
 

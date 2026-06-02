@@ -37,9 +37,20 @@ function AuthPage() {
   const navigate = useNavigate();
   const isSignup = mode === "signup";
 
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
+  const stored = (() => {
+    if (typeof window === "undefined") return null;
+    try {
+      const raw = localStorage.getItem("saboreo_remember");
+      return raw ? (JSON.parse(raw) as { email: string; password: string }) : null;
+    } catch {
+      return null;
+    }
+  })();
+
+  const [email, setEmail] = useState(stored?.email ?? "");
+  const [password, setPassword] = useState(stored?.password ?? "");
   const [fullName, setFullName] = useState("");
+  const [remember, setRemember] = useState(Boolean(stored));
   const [loading, setLoading] = useState(false);
 
   async function handleSubmit(e: React.FormEvent) {
@@ -71,6 +82,14 @@ function AuthPage() {
           method: "POST",
           body: JSON.stringify({ email: parsed.data.email, password: parsed.data.password }),
         });
+        if (remember) {
+          localStorage.setItem(
+            "saboreo_remember",
+            JSON.stringify({ email: parsed.data.email, password: parsed.data.password }),
+          );
+        } else {
+          localStorage.removeItem("saboreo_remember");
+        }
         setStoredToken(token);
         window.dispatchEvent(new CustomEvent("auth-change"));
         toast.success("¡Bienvenido a SABOREO!");
@@ -135,6 +154,18 @@ function AuthPage() {
                 onChange={setPassword}
                 autoComplete={isSignup ? "new-password" : "current-password"}
               />
+
+              {!isSignup && (
+                <label className="flex cursor-pointer items-center gap-2 px-1 text-sm text-muted-foreground">
+                  <input
+                    type="checkbox"
+                    checked={remember}
+                    onChange={(e) => setRemember(e.target.checked)}
+                    className="h-4 w-4 rounded border-input accent-saboreo-turquoise"
+                  />
+                  Recordar usuario y contraseña
+                </label>
+              )}
 
               <button
                 type="submit"

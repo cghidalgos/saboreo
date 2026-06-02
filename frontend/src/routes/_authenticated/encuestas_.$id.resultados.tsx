@@ -1,6 +1,6 @@
 import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
 import { useState, useEffect, useRef } from "react";
-import { ArrowLeft, Users, BarChart2, ChevronDown, ChevronUp, FileSpreadsheet, FileText, Brain, Loader2, Send, MessageCircle, Trash2 } from "lucide-react";
+import { ArrowLeft, Users, BarChart2, ChevronDown, ChevronUp, FileSpreadsheet, FileText, Brain, Loader2, Send, Trash2 } from "lucide-react";
 import {
   BarChart, Bar, XAxis, YAxis, ResponsiveContainer, Tooltip, CartesianGrid,
   LineChart, Line, PieChart, Pie, Cell, Legend,
@@ -20,6 +20,8 @@ const ESCALA_COLORS = ["", "#ef4444", "#f97316", "#eab308", "#22c55e", "#0ea5e9"
 const GENERO_COLORS: Record<string, string> = {
   niño: "#0ea5e9", niña: "#a855f7", otro: "#f97316", "no especificado": "#94a3b8",
 };
+// Estilo de los ejes numéricos: misma fuente (Fraunces) que los números destacados.
+const NUM_TICK = { fontSize: 11, fontFamily: "var(--font-num)", fill: "var(--muted-foreground)" } as const;
 
 interface Resultados {
   encuesta: { titulo: string; producto: string; estado: string; num_muestras: number; atributos: string[] };
@@ -376,7 +378,7 @@ function ResultadosPage() {
                 <BarChart2 className="h-5 w-5 text-white" />
               </div>
               <div>
-                <p className="font-display text-2xl font-black">{k.value}</p>
+                <p className="font-num text-2xl font-black">{k.value}</p>
                 <p className="text-xs uppercase tracking-wider text-muted-foreground">{k.label}</p>
               </div>
             </div>
@@ -406,7 +408,7 @@ function ResultadosPage() {
                       <LineChart data={por_muestra.map((m) => ({ name: `M${m.numero_muestra}`, val: Number(m.promedio), min: m.minimo, max: m.maximo }))}>
                         <CartesianGrid stroke="var(--border)" strokeDasharray="3 3" />
                         <XAxis dataKey="name" stroke="var(--muted-foreground)" fontSize={11} />
-                        <YAxis domain={[1, 5]} ticks={[1, 2, 3, 4, 5]} stroke="var(--muted-foreground)" fontSize={11} />
+                        <YAxis domain={[1, 5]} ticks={[1, 2, 3, 4, 5]} stroke="var(--muted-foreground)" tick={NUM_TICK} />
                         <Tooltip
                           contentStyle={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 12 }}
                           formatter={(v: number, key: string) => [v.toFixed ? v.toFixed(2) : v, key === "val" ? "Promedio" : key === "min" ? "Mínimo" : "Máximo"]}
@@ -428,7 +430,7 @@ function ResultadosPage() {
                       <BarChart data={dist_escala.map((d) => ({ name: `${ESCALA_EMOJIS[d.valor]} ${d.valor}`, val: d.cantidad }))}>
                         <CartesianGrid stroke="var(--border)" strokeDasharray="3 3" vertical={false} />
                         <XAxis dataKey="name" stroke="var(--muted-foreground)" fontSize={13} />
-                        <YAxis allowDecimals={false} stroke="var(--muted-foreground)" fontSize={11} />
+                        <YAxis allowDecimals={false} stroke="var(--muted-foreground)" tick={NUM_TICK} />
                         <Tooltip contentStyle={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 12 }}
                           formatter={(v: number, _: string, p: { payload?: { name: string } }) => [v, ESCALA_LABELS[parseInt(p.payload?.name?.split(" ")[1] ?? "0")]]} />
                         <Bar dataKey="val" radius={[8, 8, 0, 0]}>
@@ -461,7 +463,7 @@ function ResultadosPage() {
                           style={{ width: `${m.promedio_score_ia}%` }}
                         />
                       </div>
-                      <span className="w-12 shrink-0 text-right text-sm font-bold">{m.promedio_score_ia}/100</span>
+                      <span className="w-12 shrink-0 text-right font-num text-sm font-bold">{m.promedio_score_ia}/100</span>
                       {m.emocion_dominante_comun && (
                         <span className="rounded-full bg-blue-50 px-2 py-0.5 text-xs font-medium text-blue-700">{m.emocion_dominante_comun}</span>
                       )}
@@ -497,7 +499,7 @@ function ResultadosPage() {
                       <BarChart data={dist_edad.map((e) => ({ name: `${e.edad} años`, val: e.cantidad }))}>
                         <CartesianGrid stroke="var(--border)" strokeDasharray="3 3" vertical={false} />
                         <XAxis dataKey="name" stroke="var(--muted-foreground)" fontSize={11} />
-                        <YAxis allowDecimals={false} stroke="var(--muted-foreground)" fontSize={11} />
+                        <YAxis allowDecimals={false} stroke="var(--muted-foreground)" tick={NUM_TICK} />
                         <Tooltip contentStyle={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 12 }} formatter={(v: number) => [v, "Participantes"]} />
                         <Bar dataKey="val" fill="var(--saboreo-green)" radius={[6, 6, 0, 0]} />
                       </BarChart>
@@ -510,9 +512,7 @@ function ResultadosPage() {
             {/* Chat IA sobre resultados */}
             <div className="rounded-2xl border border-border bg-card shadow-card overflow-hidden">
               <div className="flex items-center gap-2 border-b border-border bg-gradient-to-r from-violet-50 to-blue-50 px-6 py-4">
-                <div className="grid h-8 w-8 place-items-center rounded-lg bg-violet-100">
-                  <MessageCircle className="h-4 w-4 text-violet-600" />
-                </div>
+                <img src="/logo.png" alt="SaBot" className="h-8 w-8 object-contain" />
                 <div className="flex-1">
                   <p className="font-display font-bold text-sm">SaBot</p>
                   <p className="text-xs text-muted-foreground">Pregúntale sobre los datos de esta encuesta</p>
@@ -539,9 +539,7 @@ function ResultadosPage() {
                 {chatMsgs.map((m, i) => (
                   <div key={i} className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}>
                     {m.role === "assistant" && (
-                      <div className="mr-2 mt-1 grid h-6 w-6 shrink-0 place-items-center rounded-full bg-violet-100">
-                        <Brain className="h-3.5 w-3.5 text-violet-600" />
-                      </div>
+                      <img src="/logo.png" alt="SaBot" className="mr-2 mt-1 h-6 w-6 shrink-0 object-contain" />
                     )}
                     <div className={`max-w-[80%] rounded-2xl px-4 py-2.5 text-sm leading-relaxed whitespace-pre-wrap ${
                       m.role === "user"
@@ -561,9 +559,7 @@ function ResultadosPage() {
                 ))}
                 {chatMsgs.length > 0 && chatLoading && (
                   <div className="flex justify-start">
-                    <div className="mr-2 mt-1 grid h-6 w-6 shrink-0 place-items-center rounded-full bg-violet-100">
-                      <Brain className="h-3.5 w-3.5 text-violet-600" />
-                    </div>
+                    <img src="/logo.png" alt="SaBot" className="mr-2 mt-1 h-6 w-6 shrink-0 object-contain" />
                     <div className="rounded-2xl rounded-tl-sm bg-muted px-4 py-2.5">
                       <Loader2 className="h-4 w-4 animate-spin text-violet-500" />
                     </div>
@@ -656,7 +652,7 @@ function ResultadosPage() {
                         <div className="flex items-center gap-4 shrink-0">
                           {prom && (
                             <span className="text-right">
-                              <span className="font-display text-lg font-black">{prom}</span>
+                              <span className="font-num text-lg font-black">{prom}</span>
                               <span className="text-xs text-muted-foreground"> /5</span>
                               <p className="text-[10px] text-muted-foreground">prom. de calificaciones</p>
                             </span>
@@ -745,14 +741,14 @@ function ResultadosPage() {
                                     <td className="py-1.5 font-medium text-muted-foreground">#{ev.numero_muestra}</td>
                                     <td className="py-1.5 text-center">
                                       {ev.calificacion
-                                        ? <span title={ESCALA_LABELS[ev.calificacion]}>{ESCALA_EMOJIS[ev.calificacion]} <strong>{ev.calificacion}</strong></span>
+                                        ? <span title={ESCALA_LABELS[ev.calificacion]}>{ESCALA_EMOJIS[ev.calificacion]} <strong className="font-num">{ev.calificacion}</strong></span>
                                         : "—"}
                                     </td>
                                     {evals.some((e) => e.score_ia != null) && (
                                       <>
                                         <td className="py-1.5 text-center">
                                           {ev.score_ia != null
-                                            ? <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-bold ${
+                                            ? <span className={`inline-flex items-center rounded-full px-2 py-0.5 font-num text-xs font-bold ${
                                                 ev.score_ia >= 70 ? 'bg-green-100 text-green-800' :
                                                 ev.score_ia >= 40 ? 'bg-yellow-100 text-yellow-800' :
                                                 'bg-red-100 text-red-800'}`}>{ev.score_ia}</span>

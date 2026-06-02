@@ -13,7 +13,7 @@ export function Hero() {
 
       <div className="relative mx-auto grid max-w-7xl gap-8 px-4 pb-16 pt-10 sm:px-6 sm:pb-24 sm:pt-16 md:grid-cols-12 md:pt-24">
         <div className="md:col-span-7">
-          <h1 className="mt-5 text-balance font-display text-4xl font-black leading-[0.95] text-white sm:text-5xl md:text-6xl lg:text-7xl">
+          <h1 className="mt-5 text-balance font-serif text-4xl font-black leading-[0.95] text-white sm:text-5xl md:text-6xl lg:text-7xl">
             Inteligencia Artificial para comprender el{" "}
             <span className="relative inline-block">
               <span className="relative z-10 bg-gradient-warm bg-clip-text text-transparent">sabor</span>
@@ -29,6 +29,13 @@ export function Hero() {
             Así sabemos, con datos reales, si le gustó o no — sin que tenga que explicarlo.
           </p>
 
+          {/* Mascota SaBot saludando */}
+          <img
+            src="/sabot-saludando.png"
+            alt="SaBot te saluda"
+            className="mx-auto mt-8 w-40 select-none drop-shadow-2xl sm:w-48 md:mx-0 md:mt-10"
+            draggable={false}
+          />
         </div>
 
         {/* Mock card escala hedónica — solo visible en tablet/desktop */}
@@ -39,7 +46,7 @@ export function Hero() {
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Sesión en vivo</p>
-                  <p className="font-display text-2xl font-bold">Galleta de cacao + avena</p>
+                  <p className="font-serif text-2xl font-bold">Barra nutritiva</p>
                 </div>
                 <div className="relative">
                   <div className="h-3 w-3 rounded-full bg-saboreo-red animate-pulse-ring" />
@@ -49,7 +56,7 @@ export function Hero() {
               <div className="mt-5 rounded-2xl bg-gradient-cool p-5 text-white">
                 <p className="text-xs uppercase tracking-wider opacity-80">Índice SABOREO</p>
                 <div className="mt-1 flex items-end gap-2">
-                  <span className="font-display text-6xl font-black leading-none">87</span>
+                  <span className="font-serif text-6xl font-black leading-none">87</span>
                   <span className="mb-2 text-sm font-semibold opacity-90">/ 100</span>
                 </div>
                 <p className="mt-1 text-sm font-medium">Alta aceptación</p>

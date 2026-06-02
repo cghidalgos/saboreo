@@ -1,7 +1,7 @@
 import { Link, useNavigate } from "@tanstack/react-router";
 import {
-  Sparkles, LayoutDashboard, ClipboardCheck, Video,
-  LogOut, ChevronRight, Menu, X, FileText,
+  LayoutDashboard, ClipboardCheck, Video,
+  LogOut, ChevronRight, Menu, X, FileText, BarChart3,
 } from "lucide-react";
 import { useState, type ReactNode } from "react";
 import { useAuth, ROLE_LABEL } from "@/hooks/use-auth";
@@ -10,6 +10,7 @@ import { toast } from "sonner";
 const NAV = [
   { to: "/dashboard",        label: "Dashboard",           icon: LayoutDashboard },
   { to: "/encuestas",        label: "Encuestas",            icon: ClipboardCheck  },
+  { to: "/resultados",       label: "Resultados",           icon: BarChart3       },
   { to: "/consentimientos",  label: "Consentimientos",      icon: FileText        },
   { to: "/sesion",           label: "Sesión con cámara",    icon: Video           },
 ] as const;
@@ -55,13 +56,13 @@ export function AppLayout({ children, title, subtitle, actions }: AppLayoutProps
       >
         {/* Logo */}
         <div className="flex h-16 items-center gap-2.5 border-b border-border px-5">
-          <div className="grid h-8 w-8 place-items-center rounded-xl bg-gradient-warm shadow-soft">
-            <Sparkles className="h-4 w-4 text-white" strokeWidth={2.5} />
-          </div>
-          <div className="flex flex-col leading-none">
-            <span className="font-display text-lg font-black tracking-tight">SABOREO</span>
-            <span className="text-[9px] uppercase tracking-[0.18em] text-muted-foreground">research lab</span>
-          </div>
+          <Link to="/" className="flex items-center gap-2.5">
+            <img src="/logo.png" alt="SABOREO" className="h-9 w-9 object-contain" />
+            <div className="flex flex-col leading-none">
+              <span className="font-serif text-lg font-black tracking-tight">SABOREO</span>
+              <span className="text-[9px] uppercase tracking-[0.18em] text-muted-foreground">research lab</span>
+            </div>
+          </Link>
           <button
             className="ml-auto lg:hidden"
             onClick={() => setSidebarOpen(false)}

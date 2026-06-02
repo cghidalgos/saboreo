@@ -3,6 +3,7 @@ import { useState, useEffect } from "react";
 import {
   ArrowLeft, Save, Pencil, Check, X, Plus, Trash2,
   ChevronUp, ChevronDown, AlertCircle, Info, FileText, ExternalLink, Video,
+  Eye, EyeOff,
 } from "lucide-react";
 import { toast } from "sonner";
 import { apiFetch } from "@/integrations/api/client";
@@ -61,6 +62,7 @@ interface Encuesta {
   usar_consentimiento: boolean;
   consentimiento_id: string | null;
   requiere_video: boolean;
+  secciones_ocultas: string[] | null;
   total_respuestas: number;
   created_at: string;
 }
@@ -101,6 +103,7 @@ function EditarEncuestaPage() {
   const [usarConsentimiento, setUsarConsentimiento] = useState(false);
   const [consentimientoId, setConsentimientoId] = useState<string | null>(null);
   const [requiereVideo, setRequiereVideo] = useState(false);
+  const [seccionesOcultas, setSeccionesOcultas] = useState<string[]>([]);
   const [listaConsentimientos, setListaConsentimientos] = useState<ConsentimientoResumen[]>([]);
 
   // Sección actualmente en edición
@@ -130,6 +133,7 @@ function EditarEncuestaPage() {
         setUsarConsentimiento(enc.usar_consentimiento ?? false);
         setConsentimientoId(enc.consentimiento_id ?? null);
         setRequiereVideo(enc.requiere_video ?? false);
+        setSeccionesOcultas(Array.isArray(enc.secciones_ocultas) ? enc.secciones_ocultas : []);
         setListaConsentimientos(consentimientos);
       })
       .catch(() => toast.error("No se pudo cargar la encuesta"))
@@ -153,6 +157,7 @@ function EditarEncuestaPage() {
           usar_consentimiento: usarConsentimiento,
           consentimiento_id: usarConsentimiento ? consentimientoId : null,
           requiere_video: requiereVideo,
+          secciones_ocultas: seccionesOcultas,
         }),
       });
       toast.success("Encuesta guardada");
@@ -191,6 +196,9 @@ function EditarEncuestaPage() {
   if (!encuesta) return <AppLayout title="Editar encuesta"><div className="flex h-64 items-center justify-center text-muted-foreground">No encontrada</div></AppLayout>;
 
   const toggleSeccion = (s: string) => setSeccionActiva((v) => v === s ? null : s);
+  const estaOculta = (s: string) => seccionesOcultas.includes(s);
+  const toggleOcultar = (s: string) =>
+    setSeccionesOcultas((p) => p.includes(s) ? p.filter((x) => x !== s) : [...p, s]);
 
   return (
     <AppLayout
@@ -210,7 +218,7 @@ function EditarEncuestaPage() {
       {/* Aviso editor visual */}
       <div className="mx-auto mb-4 max-w-3xl flex items-center gap-2 rounded-xl bg-blue-50 px-4 py-2.5 text-xs text-blue-700">
         <Info className="h-4 w-4 shrink-0" />
-        Haz clic en el lápiz <Pencil className="inline h-3 w-3" /> de cada sección para editarla. Así verán el formulario los participantes.
+        Haz clic en el lápiz <Pencil className="inline h-3 w-3" /> para editar una sección, o en <EyeOff className="inline h-3 w-3" /> para ocultarla del formulario que ven los participantes.
       </div>
 
       <div className="mx-auto max-w-3xl space-y-4">
@@ -257,6 +265,8 @@ function EditarEncuestaPage() {
           titulo="Instrucciones del panel sensorial"
           activa={seccionActiva === "instrucciones"}
           onToggle={() => toggleSeccion("instrucciones")}
+          oculta={estaOculta("instrucciones")}
+          onToggleOcultar={() => toggleOcultar("instrucciones")}
           preview={
             instrucciones ? (
               <div className="rounded-lg border border-blue-200 bg-blue-50 p-3">
@@ -287,6 +297,8 @@ function EditarEncuestaPage() {
           titulo="1. Consentimiento informado"
           activa={seccionActiva === "consentimiento"}
           onToggle={() => toggleSeccion("consentimiento")}
+          oculta={estaOculta("consentimiento")}
+          onToggleOcultar={() => toggleOcultar("consentimiento")}
           preview={
             <div className="space-y-2">
               <p className="text-xs text-muted-foreground leading-relaxed">{textoConsentimiento || <span className="italic">Sin texto de consentimiento</span>}</p>
@@ -334,7 +346,7 @@ function EditarEncuestaPage() {
               onClick={() => setUsarConsentimiento((v) => !v)}
               className={`relative mt-1 h-6 w-11 shrink-0 rounded-full transition-colors ${usarConsentimiento ? "bg-saboreo-green" : "bg-muted-foreground/30"}`}
             >
-              <span className={`absolute top-1 h-4 w-4 rounded-full bg-white shadow transition-transform ${usarConsentimiento ? "translate-x-6" : "translate-x-1"}`} />
+              <span className={`absolute left-1 top-1 h-4 w-4 rounded-full bg-white shadow transition-transform ${usarConsentimiento ? "translate-x-5" : "translate-x-0"}`} />
             </button>
           </div>
 
@@ -474,8 +486,8 @@ function EditarEncuestaPage() {
                   role="switch"
                   aria-checked={requiereVideo}
                 >
-                  <span className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform ${
-                    requiereVideo ? 'translate-x-5' : 'translate-x-0.5'
+                  <span className={`absolute left-0.5 top-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform ${
+                    requiereVideo ? 'translate-x-5' : 'translate-x-0'
                   }`} />
                 </button>
               </div>
@@ -524,14 +536,29 @@ function EditarEncuestaPage() {
         />
 
         {/* ═══ PREGUNTAS ADICIONALES ═══ */}
-        <div className="overflow-hidden rounded-2xl border border-border bg-card shadow-card">
-          <div className="flex items-center justify-between border-b border-border px-5 py-3">
-            <div>
-              <p className="text-sm font-bold">4. Preguntas adicionales</p>
+        <div className={`overflow-hidden rounded-2xl border bg-card shadow-card ${estaOculta("preguntas") ? "border-dashed border-border opacity-60" : "border-border"}`}>
+          <div className="flex items-center justify-between gap-2 border-b border-border px-5 py-3">
+            <div className="min-w-0">
+              <div className="flex items-center gap-2">
+                <p className="text-sm font-bold">4. Preguntas adicionales</p>
+                {estaOculta("preguntas") && (
+                  <span className="flex shrink-0 items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                    <EyeOff className="h-3 w-3" /> Oculta
+                  </span>
+                )}
+              </div>
               <p className="text-xs text-muted-foreground">Aparecen al final del formulario · {preguntas.length} pregunta{preguntas.length !== 1 ? "s" : ""}</p>
             </div>
+            <button
+              onClick={() => toggleOcultar("preguntas")}
+              title={estaOculta("preguntas") ? "Mostrar esta sección a los participantes" : "Ocultar esta sección a los participantes"}
+              className="flex shrink-0 items-center gap-1.5 rounded-full border border-border px-3 py-1.5 text-xs font-semibold text-muted-foreground transition-colors hover:bg-accent"
+            >
+              {estaOculta("preguntas") ? <><Eye className="h-3.5 w-3.5" /> Mostrar</> : <><EyeOff className="h-3.5 w-3.5" /> Ocultar</>}
+            </button>
           </div>
 
+          {!estaOculta("preguntas") && (
           <div className="p-5 space-y-3">
             {preguntas.length === 0 && (
               <p className="text-center text-sm italic text-muted-foreground py-4">Sin preguntas adicionales — agrega una abajo</p>
@@ -578,6 +605,7 @@ function EditarEncuestaPage() {
               )}
             </div>
           </div>
+          )}
         </div>
 
         {/* ═══ Botones finales ═══ */}
@@ -786,29 +814,52 @@ function EditorCampos({ campos, onChange }: {
 
 // ── Sección editable genérica ─────────────────────────────────────────────────
 
-function SeccionEditable({ titulo, activa, onToggle, preview, editor }: {
+function SeccionEditable({ titulo, activa, onToggle, preview, editor, oculta, onToggleOcultar }: {
   titulo: string; activa: boolean; onToggle: () => void;
   preview: React.ReactNode; editor: React.ReactNode;
+  oculta?: boolean; onToggleOcultar?: () => void;
 }) {
   return (
-    <div className={`overflow-hidden rounded-2xl border bg-card shadow-card transition-all ${activa ? "border-foreground/30" : "border-border"}`}>
-      <div className="flex items-center justify-between border-b border-border px-5 py-3">
-        <p className="text-sm font-bold">{titulo}</p>
-        <button
-          onClick={onToggle}
-          className={`flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold transition-colors ${activa ? "bg-foreground text-background" : "border border-border hover:bg-accent text-muted-foreground"}`}
-        >
-          {activa ? <><Check className="h-3.5 w-3.5" /> Listo</> : <><Pencil className="h-3.5 w-3.5" /> Editar</>}
-        </button>
+    <div className={`overflow-hidden rounded-2xl border bg-card shadow-card transition-all ${oculta ? "border-dashed border-border opacity-60" : activa ? "border-foreground/30" : "border-border"}`}>
+      <div className="flex items-center justify-between gap-2 border-b border-border px-5 py-3">
+        <div className="flex min-w-0 items-center gap-2">
+          <p className="truncate text-sm font-bold">{titulo}</p>
+          {oculta && (
+            <span className="flex shrink-0 items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+              <EyeOff className="h-3 w-3" /> Oculta
+            </span>
+          )}
+        </div>
+        <div className="flex shrink-0 items-center gap-1.5">
+          {onToggleOcultar && (
+            <button
+              onClick={onToggleOcultar}
+              title={oculta ? "Mostrar esta sección a los participantes" : "Ocultar esta sección a los participantes"}
+              className="flex items-center gap-1.5 rounded-full border border-border px-3 py-1.5 text-xs font-semibold text-muted-foreground transition-colors hover:bg-accent"
+            >
+              {oculta ? <><Eye className="h-3.5 w-3.5" /> Mostrar</> : <><EyeOff className="h-3.5 w-3.5" /> Ocultar</>}
+            </button>
+          )}
+          {!oculta && (
+            <button
+              onClick={onToggle}
+              className={`flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold transition-colors ${activa ? "bg-foreground text-background" : "border border-border hover:bg-accent text-muted-foreground"}`}
+            >
+              {activa ? <><Check className="h-3.5 w-3.5" /> Listo</> : <><Pencil className="h-3.5 w-3.5" /> Editar</>}
+            </button>
+          )}
+        </div>
       </div>
 
-      {/* Preview (siempre visible) */}
-      <div className={`p-5 transition-opacity ${activa ? "opacity-40" : "opacity-100"}`}>
-        {preview}
-      </div>
+      {/* Preview (oculto cuando la sección está oculta a participantes) */}
+      {!oculta && (
+        <div className={`p-5 transition-opacity ${activa ? "opacity-40" : "opacity-100"}`}>
+          {preview}
+        </div>
+      )}
 
       {/* Editor (visible solo cuando activo) */}
-      {activa && (
+      {activa && !oculta && (
         <div className="border-t border-border bg-muted/20 p-5 space-y-3">
           {editor}
         </div>

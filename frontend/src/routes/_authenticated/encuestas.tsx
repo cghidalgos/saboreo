@@ -294,7 +294,7 @@ function EncuestasPage() {
               <k.icon className="h-5 w-5 text-white" />
             </div>
             <div>
-              <p className="font-display text-3xl font-black">{k.val}</p>
+              <p className="font-num text-3xl font-black">{k.val}</p>
               <p className="text-xs uppercase tracking-wider text-muted-foreground">{k.label}</p>
             </div>
           </div>
@@ -351,7 +351,7 @@ function EncuestasPage() {
                           className={`relative h-5 w-9 shrink-0 rounded-full transition-colors focus:outline-none ${enc.estado === "activa" ? "bg-saboreo-green" : "bg-muted-foreground/30"}`}
                         >
                           <span
-                            className={`absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition-transform ${enc.estado === "activa" ? "translate-x-4" : "translate-x-0.5"}`}
+                            className={`absolute left-0.5 top-0.5 h-4 w-4 rounded-full bg-white shadow transition-transform ${enc.estado === "activa" ? "translate-x-4" : "translate-x-0"}`}
                           />
                         </button>
                         <button onClick={() => abrirEncuesta(enc)} className="grid h-7 w-7 place-items-center rounded-full hover:bg-muted">

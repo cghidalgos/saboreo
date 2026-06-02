@@ -18,7 +18,7 @@ export function AIPipeline() {
       <div className="relative mx-auto max-w-7xl px-4 sm:px-6">
         <div className="max-w-2xl">
           <span className="text-xs font-bold uppercase tracking-[0.2em] text-saboreo-yellow">¿Cómo funciona?</span>
-          <h2 className="mt-3 font-display text-3xl font-black text-white sm:text-4xl sm:text-5xl">
+          <h2 className="mt-3 font-serif text-3xl font-black text-white sm:text-4xl sm:text-5xl">
             Así analizamos la reacción de <span className="text-saboreo-yellow">cada niño</span>.
           </h2>
           <p className="mt-4 text-lg text-white/75">
@@ -35,8 +35,8 @@ export function AIPipeline() {
                   <s.icon className="h-6 w-6" />
                 </div>
                 <div className="mt-4 flex items-baseline gap-2">
-                  <span className="font-display text-xs font-bold text-white/40">0{i + 1}</span>
-                  <h3 className="font-display text-xl font-bold text-white">{s.title}</h3>
+                  <span className="font-serif text-xs font-bold text-white/40">0{i + 1}</span>
+                  <h3 className="font-serif text-xl font-bold text-white">{s.title}</h3>
                 </div>
                 <p className="mt-2 text-sm text-white/70">{s.desc}</p>
               </li>
@@ -59,7 +59,7 @@ export function AIPipeline() {
           ].map((x) => (
             <div key={x.r} className="rounded-2xl bg-white/5 p-4">
               <div className={`h-1.5 w-10 rounded-full ${x.c}`} />
-              <p className="mt-2 font-display text-2xl font-black text-white">{x.r}</p>
+              <p className="mt-2 font-serif text-2xl font-black text-white">{x.r}</p>
               <p className="text-xs uppercase tracking-wider text-white/60">{x.l}</p>
             </div>
           ))}

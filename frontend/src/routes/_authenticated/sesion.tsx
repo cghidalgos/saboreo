@@ -403,7 +403,7 @@ function SesionPage() {
               <k.icon className="h-5 w-5 text-white" />
             </div>
             <div>
-              <p className="font-display text-3xl font-black">{k.val}</p>
+              <p className="font-num text-3xl font-black">{k.val}</p>
               <p className="text-xs uppercase tracking-wider text-muted-foreground">{k.label}</p>
             </div>
           </div>
@@ -445,7 +445,7 @@ function SesionPage() {
                             <cfg.icon className="h-3 w-3" />{cfg.label}
                           </span>
                           {s.score_ia != null && (
-                            <span className={`text-sm font-black ${scoreColor(s.score_ia)}`}>{s.score_ia} pts</span>
+                            <span className={`font-num text-sm font-black ${scoreColor(s.score_ia)}`}>{s.score_ia} pts</span>
                           )}
                           {s.duracion_seg != null && (
                             <span className="text-[11px] text-muted-foreground">{fmtDur(s.duracion_seg)}</span>
@@ -633,7 +633,7 @@ function SesionPage() {
                         Muestra {resultadoActual.numero_muestra} — Análisis Claude
                       </h3>
                     </div>
-                    <span className={`font-display text-3xl font-black ${scoreColor(resultadoActual.score_ia)}`}>
+                    <span className={`font-num text-3xl font-black ${scoreColor(resultadoActual.score_ia)}`}>
                       {resultadoActual.score_ia}
                     </span>
                   </div>
@@ -765,7 +765,7 @@ function SesionDetalle({ sesion, onClose }: { sesion: Sesion; onClose: () => voi
             {/* Score */}
             <div className="flex items-center gap-6 rounded-2xl border border-border bg-muted/30 px-6 py-5">
               <div className="text-center">
-                <p className={`font-display text-6xl font-black ${scoreColor(sesion.score_ia)}`}>{sesion.score_ia}</p>
+                <p className={`font-num text-6xl font-black ${scoreColor(sesion.score_ia)}`}>{sesion.score_ia}</p>
                 <p className="text-xs uppercase tracking-wider text-muted-foreground">Índice SABOREO</p>
               </div>
               <div className="flex-1 space-y-2">

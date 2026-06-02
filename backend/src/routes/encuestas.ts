@@ -2,10 +2,27 @@ import { Router, raw, type Request, type Response } from "express";
 import { pool } from "../db.js";
 import { requireAuth, type AuthRequest } from "./auth.js";
 import { z } from "zod";
-import { writeFile, mkdir } from "fs/promises";
-import { join } from "path";
+import { writeFile, mkdir, unlink } from "fs/promises";
+import { join, basename } from "path";
 
 const router = Router();
+
+// Borra del disco los archivos de video asociados a una lista de video_url.
+// Usa basename para evitar traversal: solo el nombre del archivo dentro de uploads/videos.
+async function deleteVideoFiles(urls: (string | null | undefined)[]) {
+  const dir = join(process.cwd(), "uploads", "videos");
+  await Promise.all(
+    urls
+      .filter((u): u is string => Boolean(u))
+      .map(async (url) => {
+        try {
+          await unlink(join(dir, basename(url)));
+        } catch {
+          // Si el archivo ya no existe, lo ignoramos.
+        }
+      }),
+  );
+}
 
 const preguntaSchema = z.object({
   id: z.string(),
@@ -41,6 +58,7 @@ const encuestaSchema = z.object({
   usar_consentimiento: z.boolean().optional(),
   consentimiento_id:   z.string().uuid().optional().nullable(),
   requiere_video:      z.boolean().optional(),
+  secciones_ocultas:   z.array(z.string().max(40)).max(20).optional(),
 });
 
 const evaluacionSchema = z.object({
@@ -59,7 +77,7 @@ const evaluacionSchema = z.object({
 
 const respuestaSchema = z.object({
   participante_nombre: z.string().trim().min(2).max(120),
-  participante_edad: z.number().int().min(3).max(18),
+  participante_edad: z.number().int().min(4).max(99),
   participante_genero: z.enum(["niño", "niña", "otro"]).optional(),
   participante_institucion: z.string().trim().max(200).optional(),
   consentimiento: z.boolean(),
@@ -190,7 +208,8 @@ router.post("/publicas/:id/respuestas", async (req: Request, res: Response) => {
     res.status(201).json({ ok: true });
   } catch (err) {
     await client.query("ROLLBACK");
-    throw err;
+    console.error("Error al guardar respuesta pública:", err);
+    res.status(500).json({ error: "No se pudo guardar la evaluación." });
   } finally {
     client.release();
   }
@@ -252,7 +271,7 @@ router.patch("/:id", requireAuth, async (req: AuthRequest, res: Response) => {
     res.status(400).json({ message: parsed.error.issues[0].message });
     return;
   }
-  const JSONB_FIELDS = new Set(["atributos", "preguntas", "campos_participante"]);
+  const JSONB_FIELDS = new Set(["atributos", "preguntas", "campos_participante", "secciones_ocultas"]);
   const entries = Object.entries(parsed.data).filter(([, v]) => v !== undefined);
   if (!entries.length) { res.json({ message: "Sin cambios" }); return; }
 
@@ -270,11 +289,23 @@ router.patch("/:id", requireAuth, async (req: AuthRequest, res: Response) => {
 
 // DELETE /api/encuestas/:id
 router.delete("/:id", requireAuth, async (req: AuthRequest, res: Response) => {
+  // Recopilar los videos de todas las respuestas de esta encuesta antes de borrar.
+  const { rows: vids } = await pool.query(
+    `SELECT em.video_url
+       FROM evaluaciones_muestra em
+       JOIN respuestas_encuesta r ON r.id = em.respuesta_id
+      WHERE r.encuesta_id = $1 AND em.video_url IS NOT NULL`,
+    [req.params.id],
+  );
+
   const { rowCount } = await pool.query(
     "DELETE FROM encuestas WHERE id = $1 AND creado_por = $2",
     [req.params.id, req.userId],
   );
   if (!rowCount) { res.status(404).json({ message: "Encuesta no encontrada" }); return; }
+
+  // La BD ya borró las filas en cascada; ahora limpiamos los archivos del disco.
+  await deleteVideoFiles(vids.map((v: { video_url: string }) => v.video_url));
   res.json({ message: "Eliminada" });
 });
 
@@ -363,10 +394,19 @@ router.delete("/:id/respuestas/:respId", requireAuth, async (req: AuthRequest, r
   );
   if (!enc[0]) return res.status(404).json({ error: "Encuesta no encontrada" });
 
-  await pool.query(
+  // Recopilar los videos de esta respuesta antes de borrarla.
+  const { rows: vids } = await pool.query(
+    `SELECT video_url FROM evaluaciones_muestra WHERE respuesta_id = $1 AND video_url IS NOT NULL`,
+    [req.params.respId],
+  );
+
+  const { rowCount } = await pool.query(
     `DELETE FROM respuestas_encuesta WHERE id = $1 AND encuesta_id = $2`,
     [req.params.respId, req.params.id],
   );
+
+  // Solo limpiamos archivos si efectivamente se borró la respuesta.
+  if (rowCount) await deleteVideoFiles(vids.map((v: { video_url: string }) => v.video_url));
   res.status(204).send();
 });
 

@@ -41,3 +41,6 @@ Información para plataforma/
 
 # Video uploads
 uploads/videos/
+
+# Certificados TLS locales (claves privadas)
+frontend/certs/
