@@ -105,14 +105,14 @@ function EditConsentimientoPage() {
             onClick={() => setPreview((p) => !p)}
             className={`flex items-center gap-2 rounded-full border px-4 py-2 text-sm font-semibold transition ${preview ? "border-saboreo-blue bg-saboreo-blue/10 text-saboreo-blue" : "border-border bg-card text-muted-foreground hover:border-saboreo-blue hover:text-saboreo-blue"}`}
           >
-            <Eye className="h-4 w-4" /> {preview ? "Ocultar preview" : "Vista previa"}
+            <Eye className="h-4 w-4" /> <span className="hidden sm:inline">{preview ? "Ocultar preview" : "Vista previa"}</span>
           </button>
           <button
             onClick={guardar}
             disabled={saving}
-            className="flex items-center gap-2 rounded-full bg-foreground px-4 py-2 text-sm font-bold text-background hover:opacity-90 disabled:opacity-60"
+            className="flex items-center gap-2 rounded-full border border-border bg-background px-4 py-2 text-sm font-semibold hover:bg-accent disabled:opacity-60"
           >
-            <Save className="h-4 w-4" /> {saving ? "Guardando…" : "Guardar"}
+            <Save className="h-4 w-4" /> <span className="hidden sm:inline">{saving ? "Guardando…" : "Guardar"}</span>
           </button>
           <button
             onClick={() => navigate({ to: "/consentimientos" })}
@@ -379,7 +379,7 @@ export function PreviewConsentimiento({ form }: { form: { titulo: string; titulo
 
         {/* Ingredientes */}
         {(form.ingredientes ?? []).length > 0 && (
-          <div>
+          <div className="overflow-x-auto">
             <p className="font-semibold text-gray-700 mb-2">Ingredientes/Componentes:</p>
             <table className="w-full text-xs">
               <thead>

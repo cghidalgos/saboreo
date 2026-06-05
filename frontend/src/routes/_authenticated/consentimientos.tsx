@@ -1,10 +1,16 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useState, useEffect } from "react";
-import { FileText, Plus, X, Pencil, Trash2, ChevronRight, Users } from "lucide-react";
+import { FileText, Plus, X, Pencil, Trash2, Eye, FlaskConical, Users } from "lucide-react";
 import { toast } from "sonner";
 import { apiFetch } from "@/integrations/api/client";
 import { AppLayout } from "@/components/saboreo/AppLayout";
 import { useAuth } from "@/hooks/use-auth";
+import {
+  AlertDialog, AlertDialogTrigger, AlertDialogContent, AlertDialogHeader,
+  AlertDialogFooter, AlertDialogTitle, AlertDialogDescription,
+  AlertDialogAction, AlertDialogCancel,
+} from "@/components/ui/alert-dialog";
+import { PreviewConsentimiento } from "./consentimientos_.$id.edit";
 
 export const Route = createFileRoute("/_authenticated/consentimientos")({
   head: () => ({ meta: [{ title: "Consentimientos — SABOREO" }] }),
@@ -34,6 +40,7 @@ function ConsentimientosPage() {
   const [creando, setCreando] = useState(false);
   const [titulo, setTitulo] = useState("");
   const [saving, setSaving] = useState(false);
+  const [expandedId, setExpandedId] = useState<string | null>(null);
 
   useEffect(() => { cargarLista(); }, [user]);
 
@@ -61,7 +68,6 @@ function ConsentimientosPage() {
   }
 
   async function eliminar(id: string) {
-    if (!confirm("¿Eliminar este consentimiento?")) return;
     try {
       await apiFetch(`/api/consentimientos/${id}`, { method: "DELETE" });
       setLista((p) => p.filter((c) => c.id !== id));
@@ -77,9 +83,9 @@ function ConsentimientosPage() {
         !creando && (
           <button
             onClick={() => setCreando(true)}
-            className="flex items-center gap-2 rounded-full bg-foreground px-4 py-2 text-sm font-bold text-background hover:opacity-90"
+            className="flex items-center gap-2 rounded-full border border-border bg-background px-4 py-2 text-sm font-semibold hover:bg-accent"
           >
-            <Plus className="h-4 w-4" /> Nuevo consentimiento
+            <Plus className="h-4 w-4" /> <span className="hidden sm:inline">Nuevo consentimiento</span>
           </button>
         )
       }
@@ -139,47 +145,87 @@ function ConsentimientosPage() {
             </div>
           ) : (
             <ul className="divide-y divide-border">
-              {lista.map((c) => (
-                <li key={c.id} className="group flex items-start gap-4 px-6 py-5 hover:bg-accent/30 transition-colors">
-                  <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-blue-50">
-                    <FileText className="h-5 w-5 text-saboreo-blue" />
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <p className="font-semibold leading-tight">{c.titulo}</p>
-                    {c.titulo_investigacion && (
-                      <p className="mt-0.5 truncate text-xs text-muted-foreground">{c.titulo_investigacion}</p>
-                    )}
-                    <div className="mt-1.5 flex flex-wrap gap-2 text-[11px] text-muted-foreground">
-                      {c.investigadores.length > 0 && (
-                        <span className="flex items-center gap-1">
-                          <Users className="h-3 w-3" /> {c.investigadores.length} investigador{c.investigadores.length !== 1 ? "es" : ""}
-                        </span>
-                      )}
-                      {c.ingredientes.length > 0 && (
-                        <span>{c.ingredientes.length} ingrediente{c.ingredientes.length !== 1 ? "s" : ""}</span>
-                      )}
-                      {c.parrafos.length > 0 && (
-                        <span>{c.parrafos.length} párrafo{c.parrafos.length !== 1 ? "s" : ""}</span>
-                      )}
+              {lista.map((c) => {
+                const expandido = expandedId === c.id;
+                return (
+                <li key={c.id} className="transition-colors hover:bg-accent/30">
+                  <div className="flex items-start gap-4 px-6 py-5">
+                    <div className="flex min-w-0 flex-1 items-start gap-4">
+                      <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-blue-50">
+                        <FileText className="h-5 w-5 text-saboreo-blue" />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="font-semibold leading-tight">{c.titulo}</p>
+                        {c.titulo_investigacion && (
+                          <p className="mt-0.5 line-clamp-2 text-xs text-muted-foreground">{c.titulo_investigacion}</p>
+                        )}
+                        <div className="mt-2 flex flex-wrap gap-1.5">
+                          <span className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
+                            <Users className="h-3 w-3" /> {c.investigadores.length} investigador{c.investigadores.length !== 1 ? "es" : ""}
+                          </span>
+                          <span className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
+                            <FlaskConical className="h-3 w-3" /> {c.ingredientes.length} ingrediente{c.ingredientes.length !== 1 ? "s" : ""}
+                          </span>
+                          <span className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
+                            <FileText className="h-3 w-3" /> {c.parrafos.length} párrafo{c.parrafos.length !== 1 ? "s" : ""}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="flex shrink-0 items-center gap-1">
+                      <button
+                        onClick={() => setExpandedId((id) => (id === c.id ? null : c.id))}
+                        aria-label="Visualizar" title="Visualizar"
+                        className={`grid h-9 w-9 place-items-center rounded-full ${expandido ? "bg-brand-orange text-white" : "text-muted-foreground hover:bg-saboreo-blue/10 hover:text-saboreo-blue"}`}
+                      >
+                        <Eye className="h-4 w-4" />
+                      </button>
+                      <button
+                        onClick={() => navigate({ to: "/consentimientos/$id/edit", params: { id: c.id } })}
+                        aria-label="Editar" title="Editar"
+                        className="grid h-9 w-9 place-items-center rounded-full text-muted-foreground hover:bg-saboreo-blue/10 hover:text-saboreo-blue"
+                      >
+                        <Pencil className="h-4 w-4" />
+                      </button>
+                      <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                          <button
+                            aria-label={`Eliminar consentimiento ${c.titulo}`} title="Eliminar"
+                            className="grid h-9 w-9 place-items-center rounded-full text-muted-foreground hover:bg-red-50 hover:text-red-600"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                          <AlertDialogHeader>
+                            <AlertDialogTitle>¿Eliminar este consentimiento?</AlertDialogTitle>
+                            <AlertDialogDescription>
+                              Se eliminará «{c.titulo}» de forma permanente. Esta acción no se puede deshacer.
+                            </AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                            <AlertDialogAction
+                              onClick={() => eliminar(c.id)}
+                              className="bg-red-600 text-white hover:bg-red-700"
+                            >
+                              Eliminar
+                            </AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
                     </div>
                   </div>
-                  <div className="flex shrink-0 items-center gap-1">
-                    <button
-                      onClick={() => navigate({ to: "/consentimientos/$id/edit", params: { id: c.id } })}
-                      className="flex items-center gap-1.5 rounded-full bg-saboreo-blue/10 px-3 py-1.5 text-xs font-semibold text-saboreo-blue opacity-0 transition group-hover:opacity-100 hover:bg-saboreo-blue/20"
-                    >
-                      <Pencil className="h-3 w-3" /> Editar
-                    </button>
-                    <button
-                      onClick={() => eliminar(c.id)}
-                      className="grid h-7 w-7 place-items-center rounded-full text-muted-foreground opacity-0 transition group-hover:opacity-100 hover:bg-red-50 hover:text-red-600"
-                    >
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </button>
-                    <ChevronRight className="h-4 w-4 text-muted-foreground/40" />
-                  </div>
+
+                  {/* Visualizar: mismo formato que la vista previa del editor */}
+                  {expandido && (
+                    <div className="border-t border-border bg-muted/20 px-4 py-4 sm:px-6">
+                      <PreviewConsentimiento form={c} />
+                    </div>
+                  )}
                 </li>
-              ))}
+                );
+              })}
             </ul>
           )}
         </div>

@@ -33,7 +33,8 @@ export function Navbar() {
               <button
                 onClick={() => signOut()}
                 title="Cerrar sesión"
-                className="grid h-9 w-9 place-items-center rounded-full border border-border hover:bg-accent"
+                aria-label="Cerrar sesión"
+                className="grid h-10 w-10 place-items-center rounded-full border border-border hover:bg-accent"
               >
                 <LogOut className="h-4 w-4" />
               </button>
@@ -43,7 +44,7 @@ export function Navbar() {
               <Link
                 to="/auth"
                 search={{ mode: "login" as const, redirect: "/dashboard" }}
-                className="hidden rounded-full border border-border bg-background px-4 py-2 text-sm font-semibold hover:bg-accent sm:inline-flex"
+                className="inline-flex rounded-full border border-border bg-background px-4 py-2 text-sm font-semibold hover:bg-accent"
               >
                 Iniciar sesión
               </Link>

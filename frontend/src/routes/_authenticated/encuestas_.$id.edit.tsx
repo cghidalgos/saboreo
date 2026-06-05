@@ -206,11 +206,11 @@ function EditarEncuestaPage() {
       subtitle={titulo}
       actions={
         <div className="flex gap-2">
-          <button onClick={() => navigate({ to: "/encuestas" })} className="flex items-center gap-2 rounded-full border border-border px-4 py-2 text-sm font-semibold hover:bg-accent">
-            <ArrowLeft className="h-4 w-4" /> Volver
+          <button onClick={() => navigate({ to: "/encuestas" })} className="flex items-center gap-2 rounded-full border border-border bg-background px-4 py-2 text-sm font-semibold hover:bg-accent">
+            <ArrowLeft className="h-4 w-4" /> <span className="hidden sm:inline">Volver</span>
           </button>
-          <button onClick={guardar} disabled={saving} className="flex items-center gap-2 rounded-full bg-foreground px-4 py-2 text-sm font-bold text-background hover:opacity-90 disabled:opacity-60">
-            <Save className="h-4 w-4" /> {saving ? "Guardando…" : "Guardar cambios"}
+          <button onClick={guardar} disabled={saving} className="flex items-center gap-2 rounded-full border border-border bg-background px-4 py-2 text-sm font-semibold hover:bg-accent disabled:opacity-60">
+            <Save className="h-4 w-4" /> <span className="hidden sm:inline">{saving ? "Guardando…" : "Guardar cambios"}</span>
           </button>
         </div>
       }
@@ -665,7 +665,7 @@ function EditorCampos({ campos, onChange }: {
       <p className="text-xs text-muted-foreground">Activa/desactiva campos, marca cuáles son requeridos, agrega o elimina campos personalizados.</p>
 
       {/* Tabla de campos */}
-      <div className="overflow-hidden rounded-xl border border-border">
+      <div className="overflow-x-auto rounded-xl border border-border">
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-border bg-muted/40">

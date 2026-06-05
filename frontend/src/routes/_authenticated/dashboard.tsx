@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, type ReactNode } from "react";
 import {
   Users, Activity, Smile, ClipboardCheck, ChevronRight,
   ShieldCheck, FlaskConical,
@@ -7,7 +7,8 @@ import {
 } from "lucide-react";
 import {
   BarChart, Bar, XAxis, YAxis, ResponsiveContainer, Tooltip, CartesianGrid,
-  LineChart, Line, PieChart, Pie, Cell, Legend,
+  Line, ComposedChart, AreaChart, Area, PieChart, Pie, Cell, Legend,
+  RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar,
 } from "recharts";
 import { useAuth, ROLE_LABEL } from "@/hooks/use-auth";
 import { AppLayout } from "@/components/saboreo/AppLayout";
@@ -36,6 +37,7 @@ interface DashboardData {
   }[];
   dist_escala: { valor: number; cantidad: number }[];
   por_muestra: { numero_muestra: number; promedio: number }[];
+  dist_por_muestra: { numero_muestra: number; calificacion: number; cantidad: number }[];
   dist_genero: { genero: string; cantidad: number }[];
   dist_edad: { edad: number; cantidad: number }[];
   recientes: {
@@ -63,6 +65,23 @@ function escalaColor(v: number | null) {
   if (v >= 4) return "text-green-600";
   if (v >= 3) return "text-yellow-600";
   return "text-red-600";
+}
+
+// Monta su contenido (y dispara la animación del gráfico) cuando entra en pantalla al hacer scroll.
+function ChartReveal({ className, children }: { className?: string; children: ReactNode }) {
+  const ref = useRef<HTMLDivElement | null>(null);
+  const [shown, setShown] = useState(false);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const obs = new IntersectionObserver(
+      ([entry]) => { if (entry.isIntersecting) { setShown(true); obs.disconnect(); } },
+      { threshold: 0.2 },
+    );
+    obs.observe(el);
+    return () => obs.disconnect();
+  }, []);
+  return <div ref={ref} className={className}>{shown ? children : null}</div>;
 }
 
 // ── Componente principal ──────────────────────────────────────────────────────
@@ -115,16 +134,16 @@ function Dashboard() {
           disabled={loading}
           className="inline-flex items-center gap-2 rounded-full border border-border bg-background px-4 py-2 text-sm font-semibold hover:bg-accent disabled:opacity-60"
         >
-          <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} /> Actualizar
+          <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} /> <span className="hidden sm:inline">Actualizar</span>
         </button>
       }
     >
       <div className="mx-auto max-w-[1400px] space-y-6">
 
         {/* Role banner */}
-        <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-saboreo-turquoise/30 bg-saboreo-turquoise/10 px-5 py-3">
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-brand-orange bg-brand-orange/10 px-5 py-3">
           <div className="flex items-center gap-3 text-sm">
-            <ShieldCheck className="h-5 w-5 text-saboreo-turquoise" />
+            <ShieldCheck className="h-5 w-5 text-brand-orange-deep" />
             <span>Hola <strong>{displayName}</strong> · Acceso como <strong>{roles.length ? roles.map((r: string) => ROLE_LABEL[r as keyof typeof ROLE_LABEL]).join(", ") : "Sin rol"}</strong></span>
           </div>
           {hasRole("admin") && (
@@ -141,14 +160,14 @@ function Dashboard() {
         {!loading && data && (
           <>
             {/* KPIs */}
-            <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+            <section className="grid grid-cols-3 gap-2.5 sm:gap-4 lg:grid-cols-6">
               {kpis.map((k) => (
-                <div key={k.label} className="rounded-2xl border border-border bg-card p-5 shadow-card">
-                  <div className={`grid h-10 w-10 place-items-center rounded-xl ${k.grad} shadow-soft`}>
-                    <k.icon className="h-5 w-5 text-white" />
+                <div key={k.label} className="rounded-2xl border border-border bg-card p-3 shadow-card sm:p-5">
+                  <div className={`grid h-8 w-8 place-items-center rounded-xl ${k.grad} shadow-soft sm:h-10 sm:w-10`}>
+                    <k.icon className="h-4 w-4 text-white sm:h-5 sm:w-5" />
                   </div>
-                  <p className="mt-4 font-num text-2xl font-black tracking-tight">{k.value}</p>
-                  <p className="text-xs uppercase tracking-wider text-muted-foreground">{k.label}</p>
+                  <p className="mt-2 font-num text-xl font-black tracking-tight sm:mt-4 sm:text-2xl">{k.value}</p>
+                  <p className="text-[10px] uppercase tracking-wider text-muted-foreground sm:text-xs">{k.label}</p>
                 </div>
               ))}
             </section>
@@ -168,27 +187,27 @@ function Dashboard() {
             {data.kpis.total_respuestas > 0 && (
               <>
                 {/* Gráficos fila 1 */}
-                <section className="grid gap-4 lg:grid-cols-5">
+                <section className="grid gap-4 lg:grid-cols-3">
 
                   {/* Respuestas por encuesta */}
-                  <div className="rounded-2xl border border-border bg-card p-6 shadow-card lg:col-span-3">
+                  <div className="rounded-2xl border border-border bg-card p-6 shadow-card">
                     <h2 className="font-display text-lg font-bold">Respuestas por encuesta</h2>
                     <p className="mb-4 text-xs text-muted-foreground">Total de participantes registrados</p>
                     <div className="h-64">
                       <ResponsiveContainer>
-                        <BarChart data={data.por_encuesta.map((e) => ({ name: e.titulo.slice(0, 28) + (e.titulo.length > 28 ? "…" : ""), val: e.total_respuestas }))} layout="vertical" margin={{ left: 10, right: 20 }}>
+                        <BarChart data={data.por_encuesta.map((e) => ({ name: e.titulo.slice(0, 16) + (e.titulo.length > 16 ? "…" : ""), val: e.total_respuestas }))} layout="vertical" margin={{ left: 4, right: 16 }}>
                           <CartesianGrid stroke="var(--border)" strokeDasharray="3 3" horizontal={false} />
                           <XAxis type="number" allowDecimals={false} stroke="var(--muted-foreground)" tick={NUM_TICK} />
-                          <YAxis dataKey="name" type="category" stroke="var(--muted-foreground)" fontSize={10} width={160} />
+                          <YAxis dataKey="name" type="category" stroke="var(--muted-foreground)" fontSize={10} width={92} />
                           <Tooltip contentStyle={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 12 }} formatter={(v: number) => [v, "Respuestas"]} />
-                          <Bar dataKey="val" fill="var(--saboreo-sky)" radius={[0, 8, 8, 0]} />
+                          <Bar dataKey="val" fill="var(--saboreo-sky)" radius={[0, 8, 8, 0]} animationDuration={900} animationEasing="ease-out" />
                         </BarChart>
                       </ResponsiveContainer>
                     </div>
                   </div>
 
                   {/* Distribución escala hedónica */}
-                  <div className="rounded-2xl border border-border bg-card p-6 shadow-card lg:col-span-2">
+                  <div className="rounded-2xl border border-border bg-card p-6 shadow-card">
                     <h2 className="font-display text-lg font-bold">Escala hedónica</h2>
                     <p className="mb-4 text-xs text-muted-foreground">Distribución de calificaciones globales</p>
                     {data.dist_escala.length === 0 ? (
@@ -196,55 +215,29 @@ function Dashboard() {
                     ) : (
                       <div className="h-64">
                         <ResponsiveContainer>
-                          <BarChart data={data.dist_escala.map((d) => ({ name: `${ESCALA_EMOJIS[d.valor]} ${d.valor}`, val: d.cantidad, color: ESCALA_COLORS[d.valor] }))}>
-                            <CartesianGrid stroke="var(--border)" strokeDasharray="3 3" vertical={false} />
-                            <XAxis dataKey="name" stroke="var(--muted-foreground)" fontSize={12} />
-                            <YAxis allowDecimals={false} stroke="var(--muted-foreground)" tick={NUM_TICK} />
+                          <RadarChart outerRadius="72%" data={[1, 2, 3, 4, 5].map((v) => ({ name: `${ESCALA_EMOJIS[v]} ${v}`, val: data.dist_escala.find((d) => d.valor === v)?.cantidad ?? 0 }))}>
+                            <PolarGrid stroke="var(--border)" />
+                            <PolarAngleAxis dataKey="name" tick={{ fontSize: 13, fill: "var(--muted-foreground)" }} />
+                            <PolarRadiusAxis allowDecimals={false} angle={90} stroke="var(--border)" tick={NUM_TICK} />
                             <Tooltip contentStyle={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 12 }}
                               formatter={(v: number, _: string, props: { payload?: { name: string } }) => [v, ESCALA_LABELS[parseInt(props.payload?.name?.split(" ")[1] ?? "0")]]} />
-                            <Bar dataKey="val" radius={[8, 8, 0, 0]}>
-                              {data.dist_escala.map((d) => <Cell key={d.valor} fill={ESCALA_COLORS[d.valor]} />)}
-                            </Bar>
-                          </BarChart>
+                            <Radar dataKey="val" stroke="var(--brand-orange)" fill="var(--brand-orange)" fillOpacity={0.35} strokeWidth={2} animationDuration={900} animationBegin={150} />
+                          </RadarChart>
                         </ResponsiveContainer>
                       </div>
                     )}
                   </div>
-                </section>
-
-                {/* Gráficos fila 2 */}
-                <section className="grid gap-4 lg:grid-cols-3">
-
-                  {/* Promedio por muestra */}
-                  {data.por_muestra.length > 0 && (
-                    <div className="rounded-2xl border border-border bg-card p-6 shadow-card">
-                      <h2 className="font-display text-lg font-bold">Promedio por muestra</h2>
-                      <p className="mb-2 text-xs text-muted-foreground">Calificación media (1–5)</p>
-                      <div className="h-56">
-                        <ResponsiveContainer>
-                          <LineChart data={data.por_muestra.map((m) => ({ name: `M${m.numero_muestra}`, val: Number(m.promedio) }))}>
-                            <CartesianGrid stroke="var(--border)" strokeDasharray="3 3" />
-                            <XAxis dataKey="name" stroke="var(--muted-foreground)" fontSize={11} />
-                            <YAxis domain={[1, 5]} stroke="var(--muted-foreground)" tick={NUM_TICK} ticks={[1, 2, 3, 4, 5]} />
-                            <Tooltip contentStyle={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 12 }} formatter={(v: number) => [v.toFixed(2), "Promedio"]} />
-                            <Line type="monotone" dataKey="val" stroke="var(--saboreo-purple)" strokeWidth={3}
-                              dot={{ r: 4, fill: "var(--saboreo-yellow)", strokeWidth: 2, stroke: "var(--saboreo-purple)" }} />
-                          </LineChart>
-                        </ResponsiveContainer>
-                      </div>
-                    </div>
-                  )}
 
                   {/* Distribución género */}
                   {data.dist_genero.length > 0 && (
                     <div className="rounded-2xl border border-border bg-card p-6 shadow-card">
                       <h2 className="font-display text-lg font-bold">Participantes por género</h2>
                       <p className="mb-2 text-xs text-muted-foreground">Distribución demográfica</p>
-                      <div className="h-56">
+                      <div className="h-64">
                         <ResponsiveContainer>
                           <PieChart>
                             <Pie data={data.dist_genero.map((g) => ({ name: g.genero, value: g.cantidad }))}
-                              dataKey="value" innerRadius={45} outerRadius={80} paddingAngle={3}>
+                              dataKey="value" innerRadius={45} outerRadius={80} paddingAngle={3} animationDuration={900} animationBegin={300}>
                               {data.dist_genero.map((g) => (
                                 <Cell key={g.genero} fill={GENERO_COLORS[g.genero] ?? "var(--border)"} />
                               ))}
@@ -256,23 +249,68 @@ function Dashboard() {
                       </div>
                     </div>
                   )}
+                </section>
+
+                {/* Gráficos fila 2 */}
+                <section className="grid gap-4 lg:grid-cols-2">
+
+                  {/* Distribución de calificaciones por muestra (barras apiladas + promedio) */}
+                  {data.dist_por_muestra.length > 0 && (
+                    <div className="rounded-2xl border border-border bg-card p-6 shadow-card">
+                      <h2 className="font-display text-lg font-bold">Distribución por muestra</h2>
+                      <p className="mb-4 text-xs text-muted-foreground">Respuestas de cada nivel (😢1 … 😍5) · línea = promedio (1–5)</p>
+                      <ChartReveal className="h-56">
+                        <ResponsiveContainer>
+                          <ComposedChart
+                            data={[...new Set(data.dist_por_muestra.map((d) => d.numero_muestra))]
+                              .sort((a, b) => a - b)
+                              .map((nm) => {
+                                const row: Record<string, number | string> = { name: `M${nm}` };
+                                for (let v = 1; v <= 5; v++) {
+                                  row[`c${v}`] = data.dist_por_muestra.find((d) => d.numero_muestra === nm && d.calificacion === v)?.cantidad ?? 0;
+                                }
+                                row.prom = Number(data.por_muestra.find((m) => m.numero_muestra === nm)?.promedio ?? 0);
+                                return row;
+                              })}
+                          >
+                            <CartesianGrid stroke="var(--border)" strokeDasharray="3 3" vertical={false} />
+                            <XAxis dataKey="name" stroke="var(--muted-foreground)" fontSize={11} />
+                            <YAxis yAxisId="count" allowDecimals={false} stroke="var(--muted-foreground)" tick={NUM_TICK} width={28} />
+                            <YAxis yAxisId="rating" orientation="right" domain={[1, 5]} ticks={[1, 2, 3, 4, 5]} stroke="var(--saboreo-purple)" tick={NUM_TICK} width={24} />
+                            <Tooltip contentStyle={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 12 }} formatter={(v: number, name: string) => (name === "Promedio" ? [Number(v).toFixed(2), "Promedio"] : [v, name])} />
+                            <Legend iconType="circle" wrapperStyle={{ fontSize: 10 }} />
+                            {[1, 2, 3, 4, 5].map((v) => (
+                              <Bar key={v} yAxisId="count" dataKey={`c${v}`} stackId="a" fill={ESCALA_COLORS[v]} name={`${ESCALA_EMOJIS[v]}${v}`} radius={v === 5 ? [6, 6, 0, 0] : undefined} animationDuration={700} animationBegin={v * 110} />
+                            ))}
+                            <Line yAxisId="rating" type="monotone" dataKey="prom" name="Promedio" stroke="var(--saboreo-purple)" strokeWidth={3} dot={{ r: 4, fill: "var(--saboreo-yellow)", strokeWidth: 2, stroke: "var(--saboreo-purple)" }} animationDuration={900} animationBegin={650} />
+                          </ComposedChart>
+                        </ResponsiveContainer>
+                      </ChartReveal>
+                    </div>
+                  )}
 
                   {/* Distribución edad */}
                   {data.dist_edad.length > 0 && (
                     <div className="rounded-2xl border border-border bg-card p-6 shadow-card">
                       <h2 className="font-display text-lg font-bold">Participantes por edad</h2>
                       <p className="mb-2 text-xs text-muted-foreground">Número de respuestas por año</p>
-                      <div className="h-56">
+                      <ChartReveal className="h-56">
                         <ResponsiveContainer>
-                          <BarChart data={data.dist_edad.map((e) => ({ name: `${e.edad}a`, val: e.cantidad }))}>
+                          <AreaChart data={data.dist_edad.map((e) => ({ name: `${e.edad}a`, val: e.cantidad }))}>
+                            <defs>
+                              <linearGradient id="edadFill" x1="0" y1="0" x2="0" y2="1">
+                                <stop offset="0%" stopColor="var(--saboreo-green)" stopOpacity={0.5} />
+                                <stop offset="100%" stopColor="var(--saboreo-green)" stopOpacity={0.05} />
+                              </linearGradient>
+                            </defs>
                             <CartesianGrid stroke="var(--border)" strokeDasharray="3 3" vertical={false} />
                             <XAxis dataKey="name" stroke="var(--muted-foreground)" fontSize={11} />
                             <YAxis allowDecimals={false} stroke="var(--muted-foreground)" tick={NUM_TICK} />
                             <Tooltip contentStyle={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 12 }} formatter={(v: number) => [v, "Participantes"]} />
-                            <Bar dataKey="val" fill="var(--saboreo-green)" radius={[6, 6, 0, 0]} />
-                          </BarChart>
+                            <Area type="monotone" dataKey="val" stroke="var(--saboreo-green)" strokeWidth={2} fill="url(#edadFill)" animationDuration={1000} animationBegin={150} animationEasing="ease-out" />
+                          </AreaChart>
                         </ResponsiveContainer>
-                      </div>
+                      </ChartReveal>
                     </div>
                   )}
                 </section>
@@ -287,15 +325,15 @@ function Dashboard() {
                     <Link to="/encuestas" className="text-xs font-semibold text-saboreo-blue hover:underline">Ver encuestas</Link>
                   </div>
                   <div className="overflow-x-auto">
-                    <table className="w-full text-sm">
+                    <table className="w-full min-w-[640px] table-fixed text-sm">
                       <thead>
                         <tr className="border-b border-border text-left text-xs uppercase tracking-wider text-muted-foreground">
-                          <th className="pb-3 font-semibold">Encuesta</th>
-                          <th className="pb-3 font-semibold">Estado</th>
-                          <th className="pb-3 text-center font-semibold">Muestras</th>
-                          <th className="pb-3 text-center font-semibold">Respuestas</th>
-                          <th className="pb-3 text-center font-semibold">Prom. escala</th>
-                          <th className="pb-3 text-center font-semibold">Con alergia</th>
+                          <th className="w-[40%] pb-3 pr-2 font-semibold">Encuesta</th>
+                          <th className="w-[12%] pb-3 px-2 font-semibold">Estado</th>
+                          <th className="w-[11%] pb-3 px-2 text-center font-semibold">Muestras</th>
+                          <th className="w-[13%] pb-3 px-2 text-center font-semibold">Respuestas</th>
+                          <th className="w-[13%] pb-3 px-2 text-center font-semibold">Prom. escala</th>
+                          <th className="w-[11%] pb-3 pl-2 text-center font-semibold">Con alergia</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -303,21 +341,21 @@ function Dashboard() {
                           const EIcon = ESTADO_ICON[e.estado] ?? Clock;
                           return (
                             <tr key={e.titulo} className="border-b border-border/60 last:border-0">
-                              <td className="py-3">
-                                <p className="font-semibold">{e.titulo}</p>
-                                <p className="text-xs text-muted-foreground">{e.producto}</p>
+                              <td className="py-3 pr-2">
+                                <p className="truncate font-semibold">{e.titulo}</p>
+                                <p className="truncate text-xs text-muted-foreground">{e.producto}</p>
                               </td>
-                              <td className="py-3">
-                                <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold ${ESTADO_COLOR[e.estado]}`}>
+                              <td className="py-3 px-2">
+                                <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold whitespace-nowrap ${ESTADO_COLOR[e.estado]}`}>
                                   <EIcon className="h-3 w-3" /> {e.estado}
                                 </span>
                               </td>
-                              <td className="py-3 text-center font-num font-semibold text-muted-foreground">{e.num_muestras}</td>
-                              <td className="py-3 text-center font-num font-bold">{e.total_respuestas}</td>
-                              <td className={`py-3 text-center font-num text-lg font-black ${escalaColor(e.promedio_escala)}`}>
+                              <td className="py-3 px-2 text-center font-num font-semibold text-muted-foreground">{e.num_muestras}</td>
+                              <td className="py-3 px-2 text-center font-num font-bold">{e.total_respuestas}</td>
+                              <td className={`py-3 px-2 text-center font-num text-lg font-black ${escalaColor(e.promedio_escala)}`}>
                                 {e.promedio_escala ? `${e.promedio_escala}` : "—"}
                               </td>
-                              <td className="py-3 text-center">
+                              <td className="py-3 pl-2 text-center">
                                 {e.con_alergia > 0
                                   ? <span className="rounded-full bg-red-100 px-2 py-0.5 text-xs font-num font-bold text-red-700">{e.con_alergia}</span>
                                   : <span className="text-muted-foreground">—</span>}
@@ -336,7 +374,7 @@ function Dashboard() {
                     <div className="mb-4 flex items-baseline justify-between">
                       <div>
                         <h2 className="font-display text-lg font-bold">Últimas respuestas</h2>
-                        <p className="text-xs text-muted-foreground">Las 10 más recientes</p>
+                        <p className="text-xs text-muted-foreground">Las 5 más recientes</p>
                       </div>
                     </div>
                     <div className="overflow-x-auto">
@@ -353,7 +391,7 @@ function Dashboard() {
                           </tr>
                         </thead>
                         <tbody>
-                          {data.recientes.map((r, i) => (
+                          {data.recientes.slice(0, 5).map((r, i) => (
                             <tr key={i} className="border-b border-border/60 last:border-0">
                               <td className="py-3 font-semibold">{r.participante_nombre}</td>
                               <td className="py-3 max-w-[180px]">

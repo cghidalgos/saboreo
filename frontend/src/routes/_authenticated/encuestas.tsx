@@ -275,27 +275,27 @@ function EncuestasPage() {
         panel !== "crear" && (
           <button
             onClick={() => setPanel("crear")}
-            className="flex items-center gap-2 rounded-full bg-foreground px-4 py-2 text-sm font-bold text-background hover:opacity-90"
+            className="flex items-center gap-2 rounded-full border border-border bg-background px-4 py-2 text-sm font-semibold hover:bg-accent"
           >
-            <Plus className="h-4 w-4" /> Nueva encuesta
+            <Plus className="h-4 w-4" /> <span className="hidden sm:inline">Nueva encuesta</span>
           </button>
         )
       }
     >
       {/* KPIs */}
-      <div className="mb-6 grid gap-4 sm:grid-cols-3">
+      <div className="mb-6 grid grid-cols-3 gap-2.5 sm:gap-4">
         {[
           { icon: ClipboardCheck, label: "Total encuestas",   val: totalEncuestas,  grad: "bg-gradient-warm"  },
           { icon: Users,          label: "Total respuestas",  val: totalRespuestas, grad: "bg-gradient-cool"  },
           { icon: BarChart2,      label: "Encuestas activas", val: activas,         grad: "bg-gradient-fresh" },
         ].map((k) => (
-          <div key={k.label} className="flex items-center gap-4 rounded-2xl border border-border bg-card p-5 shadow-card">
-            <div className={`grid h-11 w-11 shrink-0 place-items-center rounded-xl ${k.grad} shadow-soft`}>
-              <k.icon className="h-5 w-5 text-white" />
+          <div key={k.label} className="flex flex-col items-start gap-2 rounded-2xl border border-border bg-card p-3 shadow-card sm:flex-row sm:items-center sm:gap-4 sm:p-5">
+            <div className={`grid h-8 w-8 shrink-0 place-items-center rounded-xl ${k.grad} shadow-soft sm:h-11 sm:w-11`}>
+              <k.icon className="h-4 w-4 text-white sm:h-5 sm:w-5" />
             </div>
             <div>
-              <p className="font-num text-3xl font-black">{k.val}</p>
-              <p className="text-xs uppercase tracking-wider text-muted-foreground">{k.label}</p>
+              <p className="font-num text-xl font-black sm:text-3xl">{k.val}</p>
+              <p className="text-[10px] uppercase tracking-wider text-muted-foreground sm:text-xs">{k.label}</p>
             </div>
           </div>
         ))}
@@ -303,7 +303,7 @@ function EncuestasPage() {
 
       <div className="grid gap-6 lg:grid-cols-5">
         {/* Lista encuestas */}
-        <div className="lg:col-span-2">
+        <div className="min-w-0 lg:col-span-2">
           <div className="rounded-2xl border border-border bg-card shadow-card">
             <div className="border-b border-border px-5 py-4">
               <h2 className="font-display text-base font-bold">Mis encuestas</h2>
@@ -379,7 +379,7 @@ function EncuestasPage() {
         </div>
 
         {/* Panel derecho */}
-        <div className="lg:col-span-3">
+        <div className="min-w-0 lg:col-span-3">
           {panel === "list" && (
             <div className="flex h-full min-h-[300px] flex-col items-center justify-center gap-3 rounded-2xl border border-dashed border-border bg-card/50 text-center">
               <ClipboardCheck className="h-12 w-12 text-muted-foreground/30" />
@@ -1012,6 +1012,7 @@ function PreviewConsentimientoPanel({ consentimientoId }: { consentimientoId: st
           <p key={i} className="text-xs leading-relaxed text-gray-500 mb-1 text-justify">{par}</p>
         ))}
         {data.ingredientes?.length > 0 && (
+          <div className="overflow-x-auto">
           <table className="w-full text-xs border border-gray-200 rounded-lg overflow-hidden">
             <thead className="bg-gray-50">
               <tr>
@@ -1028,6 +1029,7 @@ function PreviewConsentimientoPanel({ consentimientoId }: { consentimientoId: st
               ))}
             </tbody>
           </table>
+          </div>
         )}
         {data.tiene_pregunta_alergia && data.texto_alergia && (
           <div className="rounded bg-amber-50 px-3 py-2 text-xs text-amber-800">

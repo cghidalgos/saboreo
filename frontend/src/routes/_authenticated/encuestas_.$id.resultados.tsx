@@ -329,23 +329,23 @@ function ResultadosPage() {
               <button
                 onClick={async () => { setExportando("xlsx"); try { exportXLSX(data); } finally { setExportando(null); } }}
                 disabled={exportando === "xlsx"}
-                className="flex items-center gap-2 rounded-full border border-border px-4 py-2 text-sm font-semibold hover:bg-accent disabled:opacity-60"
+                className="flex items-center gap-2 rounded-full border border-border bg-background px-4 py-2 text-sm font-semibold hover:bg-accent disabled:opacity-60"
               >
                 <FileSpreadsheet className="h-4 w-4 text-green-600" />
-                {exportando === "xlsx" ? "Generando…" : "Excel"}
+                <span className="hidden sm:inline">{exportando === "xlsx" ? "Generando…" : "Excel"}</span>
               </button>
               <button
                 onClick={async () => { setExportando("pdf"); try { await exportPDF(data); } finally { setExportando(null); } }}
                 disabled={exportando === "pdf"}
-                className="flex items-center gap-2 rounded-full border border-border px-4 py-2 text-sm font-semibold hover:bg-accent disabled:opacity-60"
+                className="flex items-center gap-2 rounded-full border border-border bg-background px-4 py-2 text-sm font-semibold hover:bg-accent disabled:opacity-60"
               >
                 <FileText className="h-4 w-4 text-red-600" />
-                {exportando === "pdf" ? "Generando…" : "PDF"}
+                <span className="hidden sm:inline">{exportando === "pdf" ? "Generando…" : "PDF"}</span>
               </button>
             </>
           )}
-          <button onClick={() => navigate({ to: "/dashboard" })} className="flex items-center gap-2 rounded-full border border-border px-4 py-2 text-sm font-semibold hover:bg-accent">
-            <ArrowLeft className="h-4 w-4" /> Volver
+          <button onClick={() => navigate({ to: "/dashboard" })} className="flex items-center gap-2 rounded-full border border-border bg-background px-4 py-2 text-sm font-semibold hover:bg-accent">
+            <ArrowLeft className="h-4 w-4" /> <span className="hidden sm:inline">Volver</span>
           </button>
         </div>
       }
@@ -366,20 +366,20 @@ function ResultadosPage() {
         </div>
 
         {/* KPIs */}
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="grid grid-cols-2 gap-2.5 sm:gap-4 lg:grid-cols-4">
           {[
             { label: "Respuestas",     value: kpis.total_respuestas,   grad: "bg-gradient-cool" },
             { label: "Participantes",  value: kpis.total_participantes, grad: "bg-gradient-warm" },
             { label: "Prom. calif.",   value: promedioGeneral + " / 5", grad: "bg-gradient-fresh" },
             { label: "Con alergia",    value: kpis.con_alergia,        grad: kpis.con_alergia > 0 ? "bg-red-500" : "bg-gradient-cool" },
           ].map((k) => (
-            <div key={k.label} className="flex items-center gap-4 rounded-2xl border border-border bg-card p-5 shadow-card">
-              <div className={`grid h-11 w-11 shrink-0 place-items-center rounded-xl ${k.grad} shadow-soft`}>
-                <BarChart2 className="h-5 w-5 text-white" />
+            <div key={k.label} className="flex flex-col items-start gap-2 rounded-2xl border border-border bg-card p-3 shadow-card sm:flex-row sm:items-center sm:gap-4 sm:p-5">
+              <div className={`grid h-8 w-8 shrink-0 place-items-center rounded-xl ${k.grad} shadow-soft sm:h-11 sm:w-11`}>
+                <BarChart2 className="h-4 w-4 text-white sm:h-5 sm:w-5" />
               </div>
               <div>
-                <p className="font-num text-2xl font-black">{k.value}</p>
-                <p className="text-xs uppercase tracking-wider text-muted-foreground">{k.label}</p>
+                <p className="font-num text-xl font-black sm:text-2xl">{k.value}</p>
+                <p className="text-[10px] uppercase tracking-wider text-muted-foreground sm:text-xs">{k.label}</p>
               </div>
             </div>
           ))}

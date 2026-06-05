@@ -2,6 +2,7 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useState, useEffect, useRef } from "react";
 import { CheckCircle2, AlertCircle, ArrowLeft, ArrowRight, Loader2, Video, StopCircle } from "lucide-react";
 import { apiFetch } from "@/integrations/api/client";
+import { toast } from "sonner";
 
 export const Route = createFileRoute("/encuesta/$id")({
   head: () => ({ meta: [{ title: "Encuesta sensorial — SABOREO" }] }),
@@ -138,17 +139,17 @@ function TomarEncuestaPage() {
   async function handleSubmit() {
     if (!encuesta) return;
     const ocultas = encuesta.secciones_ocultas ?? [];
-    if (!ocultas.includes("consentimiento") && !consentimiento) { alert("Por favor confirma el consentimiento informado."); return; }
+    if (!ocultas.includes("consentimiento") && !consentimiento) { toast.error("Por favor confirma el consentimiento informado."); return; }
 
     const camposActivos = encuesta.campos_participante?.filter((c) => c.activo) ?? [];
     for (const c of camposActivos) {
       if (c.requerido && !campos[c.key]?.trim()) {
-        alert(`El campo "${c.label}" es requerido.`); return;
+        toast.error(`El campo "${c.label}" es requerido.`); return;
       }
       if (c.tipo === "numero" && campos[c.key]?.trim()) {
         const edad = Number(campos[c.key]);
         if (edad < 4 || edad > 99) {
-          alert("Edad no permitida. Debe estar entre 4 y 99 años."); return;
+          toast.error("Edad no permitida. Debe estar entre 4 y 99 años."); return;
         }
       }
     }
@@ -156,18 +157,18 @@ function TomarEncuestaPage() {
     if (encuesta.requiere_video) {
       const sinVideo = evalMuestras.filter((m) => !m.videoGrabado).length;
       if (sinVideo > 0) {
-        alert(`Faltan ${sinVideo} muestra${sinVideo > 1 ? "s" : ""} por grabar en video.`); return;
+        toast.error(`Faltan ${sinVideo} muestra${sinVideo > 1 ? "s" : ""} por grabar en video.`); return;
       }
     }
     const sinCalificar = evalMuestras.filter((m) => !m.calificacion).length;
     if (sinCalificar > 0) {
-      alert(`Faltan ${sinCalificar} muestra${sinCalificar > 1 ? "s" : ""} por calificar.`); return;
+      toast.error(`Faltan ${sinCalificar} muestra${sinCalificar > 1 ? "s" : ""} por calificar.`); return;
     }
 
     if (!ocultas.includes("preguntas")) {
       for (const q of (encuesta.preguntas ?? [])) {
         if (q.requerida && !extras[q.id]) {
-          alert(`La pregunta "${q.texto.slice(0, 50)}" es requerida.`); return;
+          toast.error(`La pregunta "${q.texto.slice(0, 50)}" es requerida.`); return;
         }
       }
     }
@@ -202,7 +203,7 @@ function TomarEncuestaPage() {
       });
       setEnviado(true);
     } catch (e) {
-      alert(e instanceof Error ? e.message : "Error al enviar la respuesta.");
+      toast.error(e instanceof Error ? e.message : "Error al enviar la respuesta.");
     } finally {
       setSaving(false);
     }
@@ -212,10 +213,10 @@ function TomarEncuestaPage() {
   function validarIntro(): boolean {
     if (!encuesta) return false;
     const ocultas = encuesta.secciones_ocultas ?? [];
-    if (!ocultas.includes("consentimiento") && !consentimiento) { alert("Por favor confirma el consentimiento informado."); return false; }
+    if (!ocultas.includes("consentimiento") && !consentimiento) { toast.error("Por favor confirma el consentimiento informado."); return false; }
     const requeridos = encuesta.campos_participante?.filter((c) => c.activo && c.requerido) ?? [];
     for (const c of requeridos) {
-      if (!campos[c.key]?.trim()) { alert(`El campo "${c.label}" es requerido.`); return false; }
+      if (!campos[c.key]?.trim()) { toast.error(`El campo "${c.label}" es requerido.`); return false; }
     }
     return true;
   }
@@ -224,10 +225,10 @@ function TomarEncuestaPage() {
     if (!encuesta) return false;
     const m = evalMuestras[idx];
     if (encuesta.requiere_video && !m?.videoGrabado) {
-      alert(`Falta grabar el video de la muestra ${idx + 1}.`); return false;
+      toast.error(`Falta grabar el video de la muestra ${idx + 1}.`); return false;
     }
     if (!m?.calificacion) {
-      alert(`Falta calificar la muestra ${idx + 1}.`); return false;
+      toast.error(`Falta calificar la muestra ${idx + 1}.`); return false;
     }
     return true;
   }
@@ -255,7 +256,7 @@ function TomarEncuestaPage() {
   if (error) return (
     <div className="flex min-h-screen flex-col items-center justify-center gap-4 bg-[#f8f7f4] px-4 text-center">
       <AlertCircle className="h-14 w-14 text-red-400" />
-      <h1 className="text-xl font-bold text-gray-800">{error}</h1>
+      <h1 className="font-serif text-xl font-bold text-gray-800">{error}</h1>
       <button onClick={() => navigate({ to: "/" })} className="text-sm font-semibold text-[#4F86C6] hover:underline">
         ← Volver al inicio
       </button>
@@ -285,7 +286,7 @@ function TomarEncuestaPage() {
         <CheckCircle2 className="h-12 w-12 text-green-600" />
       </div>
       <div>
-        <h1 className="text-2xl font-black text-gray-900">¡Gracias por participar!</h1>
+        <h1 className="font-serif text-3xl font-black bg-gradient-to-r from-[#4F86C6] to-[#F4845F] bg-clip-text text-transparent">¡Gracias por participar!</h1>
         <p className="mt-2 text-gray-500">Tu respuesta ha sido registrada correctamente.</p>
       </div>
       <button
@@ -328,8 +329,9 @@ function TomarEncuestaPage() {
       <header className="sticky top-0 z-10 border-b border-gray-200 bg-white/90 backdrop-blur-sm">
         <div className="mx-auto flex max-w-2xl items-center gap-3 px-4 py-4">
           <button
+            aria-label="Volver"
             onClick={() => (paso === 0 ? navigate({ to: "/" }) : irAnterior())}
-            className="grid h-8 w-8 place-items-center rounded-full hover:bg-gray-100"
+            className="grid h-10 w-10 place-items-center rounded-full hover:bg-gray-100"
           >
             <ArrowLeft className="h-4 w-4 text-gray-500" />
           </button>
@@ -356,7 +358,7 @@ function TomarEncuestaPage() {
         {/* Banner */}
         <div className="rounded-2xl bg-gradient-to-br from-[#4F86C6] to-[#6B9FD4] p-6 text-white shadow-lg">
           <p className="text-xs font-semibold uppercase tracking-widest opacity-70 mb-1">Evaluación sensorial</p>
-          <h2 className="text-2xl font-black leading-tight">{encuesta.titulo}</h2>
+          <h2 className="font-serif text-2xl font-black leading-tight">{encuesta.titulo}</h2>
           {encuesta.descripcion && <p className="mt-2 text-sm opacity-80 leading-relaxed">{encuesta.descripcion}</p>}
           <div className="mt-4 flex flex-wrap gap-2">
             <span className="rounded-full bg-white/20 px-3 py-1 text-xs font-semibold">{encuesta.producto}</span>
@@ -370,7 +372,7 @@ function TomarEncuestaPage() {
         {/* Instrucciones */}
         {mostrarInstrucciones && encuesta.instrucciones && (
           <div className="rounded-2xl border border-blue-200 bg-blue-50 p-5">
-            <h3 className="mb-3 flex items-center gap-2 font-bold text-blue-800">
+            <h3 className="mb-3 flex items-center gap-2 font-serif font-bold text-blue-800">
               <AlertCircle className="h-4 w-4" /> Instrucciones
             </h3>
             <ul className="space-y-1.5">
@@ -479,7 +481,7 @@ function TomarEncuestaPage() {
               <div className="flex items-center gap-3">
                 <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-[#4F86C6] text-lg font-black text-white shadow-sm">{idx + 1}</span>
                 <div className="min-w-0">
-                  <h2 className="text-lg font-black text-gray-900">Muestra {idx + 1}</h2>
+                  <h2 className="font-serif text-lg font-black text-gray-900">Muestra {idx + 1}</h2>
                   <p className="text-xs text-gray-400">de {N} · Evalúa el atributo {atributos.join(", ")}</p>
                 </div>
                 {encuesta.requiere_video && m.videoGrabado && (
@@ -986,10 +988,10 @@ function PaginaConsentimiento({
 
   function handleAceptar() {
     if (!nombreParticipante.trim()) {
-      alert("Por favor escribe el nombre del participante."); return;
+      toast.error("Por favor escribe el nombre del participante."); return;
     }
     if (data.tiene_pregunta_alergia && tieneAlergia === null) {
-      alert("Por favor responde la pregunta de alergia."); return;
+      toast.error("Por favor responde la pregunta de alergia."); return;
     }
     onAceptar(nombreParticipante.trim());
   }
@@ -999,7 +1001,7 @@ function PaginaConsentimiento({
       {/* Header */}
       <header className="sticky top-0 z-10 border-b border-gray-200 bg-white/90 backdrop-blur-sm">
         <div className="mx-auto flex max-w-2xl items-center gap-3 px-4 py-4">
-          <button onClick={onVolver} className="grid h-8 w-8 place-items-center rounded-full hover:bg-gray-100">
+          <button onClick={onVolver} aria-label="Volver" className="grid h-10 w-10 place-items-center rounded-full hover:bg-gray-100">
             <ArrowLeft className="h-4 w-4 text-gray-500" />
           </button>
           <div className="min-w-0 flex-1">
@@ -1023,9 +1025,9 @@ function PaginaConsentimiento({
           <div className="bg-gradient-to-br from-slate-700 to-slate-900 px-6 py-6 text-white">
             <p className="text-xs font-bold uppercase tracking-widest opacity-60 mb-2">Consentimiento informado</p>
             {data.titulo_investigacion ? (
-              <h2 className="text-lg font-black leading-snug">{data.titulo_investigacion}</h2>
+              <h2 className="font-serif text-lg font-black leading-snug">{data.titulo_investigacion}</h2>
             ) : (
-              <h2 className="text-lg font-black">{data.titulo}</h2>
+              <h2 className="font-serif text-lg font-black">{data.titulo}</h2>
             )}
             {data.investigadores.length > 0 && (
               <div className="mt-3 space-y-0.5">
@@ -1173,7 +1175,7 @@ function Section({ numero, titulo, children }: { numero: number; titulo: string;
         <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#4F86C6] text-sm font-black text-white">
           {numero}
         </span>
-        <h3 className="font-bold text-gray-800">{titulo}</h3>
+        <h3 className="font-serif font-bold text-gray-800">{titulo}</h3>
       </div>
       {children}
     </div>

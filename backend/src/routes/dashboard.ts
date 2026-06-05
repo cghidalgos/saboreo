@@ -94,6 +94,20 @@ router.get("/", requireAuth, async (req: AuthRequest, res: Response) => {
     ORDER BY em.numero_muestra
   `, [userId]);
 
+  // Distribución de calificaciones (1–5) por muestra — para barras apiladas
+  const { rows: distPorMuestra } = await pool.query(`
+    SELECT
+      em.numero_muestra,
+      em.calificacion,
+      COUNT(*)::int AS cantidad
+    FROM evaluaciones_muestra em
+    JOIN respuestas_encuesta r ON r.id = em.respuesta_id
+    JOIN encuestas e ON e.id = r.encuesta_id
+    WHERE e.creado_por = $1 AND em.calificacion IS NOT NULL
+    GROUP BY em.numero_muestra, em.calificacion
+    ORDER BY em.numero_muestra, em.calificacion
+  `, [userId]);
+
   // Distribución género
   const { rows: distGenero } = await pool.query(`
     SELECT
@@ -140,6 +154,7 @@ router.get("/", requireAuth, async (req: AuthRequest, res: Response) => {
     por_encuesta: porEncuesta,
     dist_escala: distEscala,
     por_muestra: porMuestra,
+    dist_por_muestra: distPorMuestra,
     dist_genero: distGenero,
     dist_edad: distEdad,
     recientes,

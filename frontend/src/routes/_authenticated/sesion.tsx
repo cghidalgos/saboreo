@@ -384,27 +384,27 @@ function SesionPage() {
         vista !== "nueva" && (
           <button
             onClick={nuevaSesion}
-            className="flex items-center gap-2 rounded-full bg-foreground px-4 py-2 text-sm font-bold text-background hover:opacity-90"
+            className="flex items-center gap-2 rounded-full border border-border bg-background px-4 py-2 text-sm font-semibold hover:bg-accent"
           >
-            <Plus className="h-4 w-4" /> Nueva sesión
+            <Plus className="h-4 w-4" /> <span className="hidden sm:inline">Nueva sesión</span>
           </button>
         )
       }
     >
       {/* KPIs */}
-      <div className="mb-6 grid gap-4 sm:grid-cols-3">
+      <div className="mb-6 grid grid-cols-3 gap-2.5 sm:gap-4">
         {[
           { icon: Video,       label: "Total sesiones",    val: sesiones.length,                   grad: "bg-gradient-warm" },
           { icon: CheckCircle2,label: "Completadas",       val: completadas,                        grad: "bg-gradient-cool" },
           { icon: BrainCircuit,label: "Score IA promedio", val: completadas ? `${Math.round(avgScore)}` : "—", grad: "bg-gradient-fresh" },
         ].map((k) => (
-          <div key={k.label} className="flex items-center gap-4 rounded-2xl border border-border bg-card p-5 shadow-card">
-            <div className={`grid h-11 w-11 shrink-0 place-items-center rounded-xl ${k.grad} shadow-soft`}>
-              <k.icon className="h-5 w-5 text-white" />
+          <div key={k.label} className="flex flex-col items-start gap-2 rounded-2xl border border-border bg-card p-3 shadow-card sm:flex-row sm:items-center sm:gap-4 sm:p-5">
+            <div className={`grid h-8 w-8 shrink-0 place-items-center rounded-xl ${k.grad} shadow-soft sm:h-11 sm:w-11`}>
+              <k.icon className="h-4 w-4 text-white sm:h-5 sm:w-5" />
             </div>
             <div>
-              <p className="font-num text-3xl font-black">{k.val}</p>
-              <p className="text-xs uppercase tracking-wider text-muted-foreground">{k.label}</p>
+              <p className="font-num text-xl font-black sm:text-3xl">{k.val}</p>
+              <p className="text-[10px] uppercase tracking-wider text-muted-foreground sm:text-xs">{k.label}</p>
             </div>
           </div>
         ))}

@@ -52,6 +52,8 @@ services:
       context: ./frontend
       target: dev
     ports:
+      # Host 9020 lo ocupa otro proyecto (gestorproyectos); se publica en 9031
+      # para evitar la colisión. FRONTEND_URL (CORS) debe coincidir con este puerto.
       - "9031:9020"
     volumes:
       - ./frontend:/app

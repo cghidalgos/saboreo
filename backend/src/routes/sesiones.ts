@@ -12,7 +12,7 @@ const router = Router();
 const createSchema = z.object({
   titulo: z.string().trim().min(3).max(200),
   participante_nombre: z.string().trim().min(2).max(120),
-  participante_edad: z.number().int().min(3).max(18),
+  participante_edad: z.number().int().min(4).max(99),
   encuesta_id: z.string().uuid().optional(),
   notas: z.string().trim().max(1000).optional(),
 });

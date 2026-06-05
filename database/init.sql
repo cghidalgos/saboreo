@@ -67,7 +67,7 @@ CREATE TABLE respuestas_encuesta (
   id                       UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
   encuesta_id              UUID        NOT NULL REFERENCES encuestas(id) ON DELETE CASCADE,
   participante_nombre      TEXT        NOT NULL,
-  participante_edad        INTEGER     NOT NULL CHECK (participante_edad BETWEEN 3 AND 18),
+  participante_edad        INTEGER     NOT NULL CHECK (participante_edad BETWEEN 4 AND 99),
   participante_genero      TEXT        CHECK (participante_genero IN ('niño', 'niña', 'otro')),
   participante_institucion TEXT,
   consentimiento           BOOLEAN     NOT NULL DEFAULT false,
@@ -101,7 +101,7 @@ CREATE TABLE sesiones (
   titulo              TEXT        NOT NULL,
   encuesta_id         UUID        REFERENCES encuestas(id) ON DELETE SET NULL,
   participante_nombre TEXT        NOT NULL,
-  participante_edad   INTEGER     NOT NULL CHECK (participante_edad BETWEEN 3 AND 18),
+  participante_edad   INTEGER     NOT NULL CHECK (participante_edad BETWEEN 4 AND 99),
   estado              TEXT        NOT NULL DEFAULT 'pendiente'
                                   CHECK (estado IN ('pendiente', 'grabando', 'completada', 'cancelada')),
   duracion_seg        INTEGER,
