@@ -512,7 +512,7 @@ function ResultadosPage() {
             {/* Chat IA sobre resultados */}
             <div className="rounded-2xl border border-border bg-card shadow-card overflow-hidden">
               <div className="flex items-center gap-2 border-b border-border bg-gradient-to-r from-violet-50 to-blue-50 px-6 py-4">
-                <img src="/logo.png" alt="SaBot" className="h-8 w-8 object-contain" />
+                <img src={`${import.meta.env.BASE_URL}logo.png`} alt="SaBot" className="h-8 w-8 object-contain" />
                 <div className="flex-1">
                   <p className="font-display font-bold text-sm">SaBot</p>
                   <p className="text-xs text-muted-foreground">Pregúntale sobre los datos de esta encuesta</p>
@@ -539,7 +539,7 @@ function ResultadosPage() {
                 {chatMsgs.map((m, i) => (
                   <div key={i} className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}>
                     {m.role === "assistant" && (
-                      <img src="/logo.png" alt="SaBot" className="mr-2 mt-1 h-6 w-6 shrink-0 object-contain" />
+                      <img src={`${import.meta.env.BASE_URL}logo.png`} alt="SaBot" className="mr-2 mt-1 h-6 w-6 shrink-0 object-contain" />
                     )}
                     <div className={`max-w-[80%] rounded-2xl px-4 py-2.5 text-sm leading-relaxed whitespace-pre-wrap ${
                       m.role === "user"
@@ -559,7 +559,7 @@ function ResultadosPage() {
                 ))}
                 {chatMsgs.length > 0 && chatLoading && (
                   <div className="flex justify-start">
-                    <img src="/logo.png" alt="SaBot" className="mr-2 mt-1 h-6 w-6 shrink-0 object-contain" />
+                    <img src={`${import.meta.env.BASE_URL}logo.png`} alt="SaBot" className="mr-2 mt-1 h-6 w-6 shrink-0 object-contain" />
                     <div className="rounded-2xl rounded-tl-sm bg-muted px-4 py-2.5">
                       <Loader2 className="h-4 w-4 animate-spin text-violet-500" />
                     </div>

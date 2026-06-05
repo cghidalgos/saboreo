@@ -31,7 +31,7 @@ export function Hero() {
 
           {/* Mascota SaBot saludando */}
           <img
-            src="/sabot-saludando.png"
+            src={`${import.meta.env.BASE_URL}sabot-saludando.png`}
             alt="SaBot te saluda"
             className="mx-auto mt-8 w-40 select-none drop-shadow-2xl sm:w-48 md:mx-0 md:mt-10"
             draggable={false}

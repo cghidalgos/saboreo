@@ -57,7 +57,7 @@ export function AppLayout({ children, title, subtitle, actions }: AppLayoutProps
         {/* Logo */}
         <div className="flex h-16 items-center gap-2.5 border-b border-black/10 bg-brand-orange px-5 text-white">
           <Link to="/" className="flex items-center gap-2.5">
-            <img src="/logo.png" alt="SABOREO" className="h-9 w-9 object-contain" />
+            <img src={`${import.meta.env.BASE_URL}logo.png`} alt="SABOREO" className="h-9 w-9 object-contain" />
             <div className="flex flex-col leading-none">
               <span className="font-serif text-lg font-black tracking-tight">SABOREO</span>
               <span className="text-[9px] uppercase tracking-[0.18em] text-white/70">research lab</span>

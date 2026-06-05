@@ -33,7 +33,7 @@ export function EncuestasActivas({ encuestas }: { encuestas: EncuestaPublica[] }
       <div className="relative mx-auto max-w-7xl px-6">
         {/* Mascota SaBot invitando a participar */}
         <img
-          src="/sabot-preguntando.png"
+          src={`${import.meta.env.BASE_URL}sabot-preguntando.png`}
           alt="SaBot te invita a participar"
           className="pointer-events-none absolute right-0 top-0 hidden w-36 select-none drop-shadow-xl lg:block xl:right-4"
           draggable={false}
