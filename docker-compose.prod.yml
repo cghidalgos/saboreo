@@ -1,0 +1,66 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./database/init.sql:/docker-entrypoint-initdb.d/01_init.sql:ro
+      - ./database/migration_001.sql:/docker-entrypoint-initdb.d/02_migration_001.sql:ro
+      - ./database/migration_002.sql:/docker-entrypoint-initdb.d/03_migration_002.sql:ro
+      - ./database/migration_003.sql:/docker-entrypoint-initdb.d/04_migration_003.sql:ro
+      - ./database/migration_004.sql:/docker-entrypoint-initdb.d/05_migration_004.sql:ro
+      - ./database/migration_005.sql:/docker-entrypoint-initdb.d/06_migration_005.sql:ro
+      - ./database/migration_006.sql:/docker-entrypoint-initdb.d/07_migration_006.sql:ro
+      - ./database/migration_007.sql:/docker-entrypoint-initdb.d/08_migration_007.sql:ro
+      - ./database/migration_008.sql:/docker-entrypoint-initdb.d/09_migration_008.sql:ro
+      - ./database/migration_009.sql:/docker-entrypoint-initdb.d/10_migration_009.sql:ro
+      - ./database/seed.sql:/docker-entrypoint-initdb.d/11_seed.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+  backend:
+    build:
+      context: ./backend
+      target: prod
+    ports:
+      - "9054:9021"
+    environment:
+      NODE_ENV: production
+      PORT: 9021
+      FRONTEND_URL: https://lidis.usbcali.edu.co
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      JWT_SECRET: ${JWT_SECRET}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      CLAUDE_MODEL: ${CLAUDE_MODEL:-claude-haiku-4-5-20251001}
+    volumes:
+      - ./uploads:/app/uploads
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./frontend
+      target: prod
+      args:
+        VITE_BASE: /saboreo/
+        VITE_API_URL: /saboreo
+    ports:
+      - "9053:9020"
+    environment:
+      NODE_ENV: production
+      BACKEND_INTERNAL_URL: "http://backend:9021"
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
