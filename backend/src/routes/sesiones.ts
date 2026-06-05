@@ -5,7 +5,7 @@ import { z } from "zod";
 import { analizarMuestraConClaude } from "../lib/claude.js";
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-function isUuid(v: string) { return UUID_RE.test(v); }
+function isUuid(v: unknown) { return typeof v === "string" && UUID_RE.test(v); }
 
 const router = Router();
 
