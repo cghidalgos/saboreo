@@ -44,3 +44,6 @@ uploads/videos/
 
 # Certificados TLS locales (claves privadas)
 frontend/certs/
+
+# Backups de base de datos (no versionar: contienen datos de participantes)
+/saboreo_backup_*.sql

@@ -152,9 +152,22 @@ router.post(
     }
     const dir = join(process.cwd(), "uploads", "videos");
     await mkdir(dir, { recursive: true });
-    const filename = `${id}_m${muestra}_${Date.now()}.webm`;
-    await writeFile(join(dir, filename), req.body as Buffer);
-    res.json({ video_url: `/videos/${filename}` });
+    const base = `${id}_m${muestra}_${Date.now()}`;
+    const webmPath = join(dir, `${base}.webm`);
+    await writeFile(webmPath, req.body as Buffer);
+
+    // El navegador graba en WebM, que Safari de iOS no reproduce. Convertimos a MP4
+    // (H.264/AAC) para que el video se vea en todos los dispositivos. Si ffmpeg falla,
+    // conservamos el WebM como respaldo (al menos funciona en Chrome/Android/desktop).
+    try {
+      const { transcodeToMp4 } = await import("../lib/video.js");
+      await transcodeToMp4(webmPath, join(dir, `${base}.mp4`));
+      await unlink(webmPath).catch(() => {});
+      return res.json({ video_url: `/videos/${base}.mp4` });
+    } catch (err) {
+      console.error("Error transcodificando video a MP4, se conserva WebM:", err);
+      return res.json({ video_url: `/videos/${base}.webm` });
+    }
   }
 );
 
