@@ -190,14 +190,14 @@ function TomarEncuestaPage() {
             numero_muestra: i + 1,
             calificacion: m.calificacion || undefined,
             observaciones: m.observaciones || undefined,
-            score_ia: m.score_ia,
-            emociones: m.emociones,
-            emocion_dominante: m.emocion_dominante,
-            sentimiento_voz: m.sentimiento_voz,
-            resumen_ia: m.resumen_ia,
-            frames_analizados: m.frames_analizados,
-            video_url: m.video_url,
-            transcripcion: m.transcripcion,
+            score_ia: m.score_ia || undefined,
+            emociones: m.emociones && Object.keys(m.emociones).length ? m.emociones : undefined,
+            emocion_dominante: m.emocion_dominante || undefined,
+            sentimiento_voz: m.sentimiento_voz || undefined,
+            resumen_ia: m.resumen_ia || undefined,
+            frames_analizados: m.frames_analizados || undefined,
+            video_url: m.video_url || undefined,
+            transcripcion: m.transcripcion || undefined,
           })),
         }),
       });
@@ -504,7 +504,7 @@ function TomarEncuestaPage() {
                             ? { ...mm, videoGrabado: true, score_ia: r.score_ia,
                                 // Pre-marca la carita según el sentimiento detectado por la cámara
                                 // (solo si el participante aún no eligió una manualmente).
-                                calificacion: mm.calificacion || scoreACarita(r.score_ia),
+                                calificacion: mm.calificacion || (r.score_ia ? scoreACarita(r.score_ia) : 0),
                                 emociones: r.emociones, emocion_dominante: r.emocion_dominante,
                                 sentimiento_voz: r.sentimiento_voz, resumen_ia: r.resumen,
                                 frames_analizados: r.frames_analizados,
@@ -852,8 +852,20 @@ function VideoRecorderMuestra({
         transcripcion,
       });
     } catch (e) {
-      setErrMsg(e instanceof Error ? e.message : "Error al analizar el video.");
-      setFase("error");
+      // El análisis con IA puede no estar disponible (un fallo de red o de la
+      // API de Claude). No es crítico para la encuesta: dejamos completar la
+      // muestra sin datos de IA en vez de bloquear al participante. La
+      // calificación y los datos sí se guardan.
+      // (El histórico PayloadTooLargeError por el límite de express.json se
+      //  corrigió subiéndolo a 10 MB en el backend; no era el WAF.)
+      console.warn("Análisis de video no disponible, se continúa sin IA:", e);
+      setResultado(null);
+      setFase("listo");
+      onDone({
+        score_ia: 0, emocion_dominante: "", sentimiento_voz: "",
+        resumen: "", emociones: {}, frames_analizados: frames.length,
+        video_url, transcripcion,
+      });
     }
   }
 
@@ -911,6 +923,17 @@ function VideoRecorderMuestra({
     <div className="rounded-xl bg-red-50 border border-red-200 p-4 text-sm text-red-700">
       <p className="font-semibold mb-1">Error de cámara</p>
       <p>{errMsg}</p>
+    </div>
+  );
+
+  if (fase === "listo" && !resultado) return (
+    <div className="rounded-xl bg-green-50 border border-green-200 p-4 space-y-1">
+      <div className="flex items-center gap-2 text-green-700 font-semibold text-sm">
+        <CheckCircle2 className="h-4 w-4" /> Video grabado — Muestra {muestraNum}
+      </div>
+      <p className="text-xs text-gray-600">
+        Tu grabación quedó registrada. Continúa calificando la muestra más abajo. 👇
+      </p>
     </div>
   );
 
